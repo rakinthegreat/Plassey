@@ -1,0 +1,132 @@
+import type { Player } from "../types/game";
+
+export const GameEngine = {
+  /**
+   * Assigns roles and factions to players based on the player count.
+   * নবাব (Nawab) = Green (Loyalists)
+   * ইইসি (EIC) = Red (Spies/Traitors)
+   */
+  assignRoles: (players: Player[]): Player[] => {
+    const count = players.length;
+    let redCount = 2;
+    if (count < 5) redCount = 1; // Testing mode
+    else if (count >= 7) redCount = 3;
+    else if (count >= 10) redCount = 4;
+    
+    const greenCount = count - redCount;
+
+    // Mandatory Roles
+    const mandatoryGreen = { role: 'Mir Madan', faction: 'nawab' as const };
+    const mandatoryRed = { role: 'Mir Jafar', faction: 'eic' as const };
+
+    // Pool of potential roles
+    const greenPool = [
+      'Nawab Siraj-ud-Dawlah', 
+      'Lutfunnisa Begum', 
+      'Mohonlal', 
+      'St. Frais', 
+      'Khwaja Hadi Khan'
+    ];
+    const redPool = [
+      'Ray Durlabh', 
+      'Ghaseti Begum', 
+      'Omichand'
+    ];
+
+    // Helper to shuffle array
+    const shuffle = <T>(array: T[]): T[] => {
+      return array.sort(() => Math.random() - 0.5);
+    };
+
+    const selectedGreenRoles = greenCount > 1 ? shuffle(greenPool).slice(0, greenCount - 1) : [];
+    const selectedRedRoles = redCount > 1 ? shuffle(redPool).slice(0, redCount - 1) : [];
+
+    const finalRoster = shuffle([
+      mandatoryGreen,
+      mandatoryRed,
+      ...selectedGreenRoles.map(r => ({ role: r, faction: 'nawab' as const })),
+      ...selectedRedRoles.map(r => ({ role: r, faction: 'eic' as const }))
+    ]);
+
+    // Assign to players
+    return players.map((player, index) => ({
+      ...player,
+      role: finalRoster[index].role,
+      faction: finalRoster[index].faction
+    }));
+  },
+
+  getTeamSize: (playerCount: number, round: number): number => {
+    const matrix: Record<number, number[]> = {
+      5: [2, 3, 2, 3, 3],
+      6: [2, 3, 3, 3, 4],
+      7: [2, 3, 3, 4, 4],
+      8: [3, 4, 4, 5, 5],
+      9: [3, 4, 4, 5, 5],
+      10: [3, 4, 4, 5, 5]
+    };
+    
+    const sizes = matrix[playerCount] || matrix[5];
+    return sizes[round - 1];
+  },
+
+  /**
+   * Tally votes for a team proposal.
+   */
+  tallyTeamVotes(players: Player[], teamVotes: Record<string, 'approve' | 'reject'>) {
+    const approves = Object.values(teamVotes).filter(v => v === 'approve').length;
+    const rejects = Object.values(teamVotes).filter(v => v === 'reject').length;
+    const isApproved = approves > players.length / 2;
+
+    return { approve: approves, reject: rejects, passed: isApproved };
+  },
+
+  /**
+   * Tally secret mission votes.
+   */
+  tallyMissionVotes(missionVotes: ('support' | 'sabotage')[], currentRound: number, playerCount: number) {
+    const sabotageCount = missionVotes.filter(v => v === 'sabotage').length;
+    
+    // Round 4 Exception: if 7 or more players, Round 4 requires 2 sabotages to fail.
+    let sabotagesRequired = 1;
+    if (currentRound === 4 && playerCount >= 7) {
+      sabotagesRequired = 2;
+    }
+
+    const passed = sabotageCount < sabotagesRequired;
+
+    return { support: missionVotes.length - sabotageCount, sabotage: sabotageCount, passed };
+  },
+
+  /**
+   * Checks if either team has won 3 rounds.
+   */
+  checkEndgame(roundHistory: ('nawab' | 'eic' | 'pending')[]) {
+    const eicWins = roundHistory.filter(w => w === 'eic').length;
+    const nawabWins = roundHistory.filter(w => w === 'nawab').length;
+
+    if (eicWins >= 3) return 'eic' as const;
+    if (nawabWins >= 3) return 'nawab' as const;
+    return null;
+  },
+
+  /**
+   * Resolves the EIC guess for Mir Madan.
+   */
+  tallyMirMadanGuess(players: Player[], targetId: string) {
+    const target = players.find(p => p.id === targetId);
+    if (target?.role === 'Mir Madan') {
+      return { winner: 'eic' as const, winReason: 'mir_madan_assassinated' };
+    }
+    return { winner: 'nawab' as const, winReason: '3_missions_won_mir_madan_safe' };
+  },
+
+  /**
+   * Helper to find the next leader in rotation
+   */
+  getNextLeader(players: Player[], currentLeaderId: string) {
+    const currentIndex = players.findIndex(p => p.id === currentLeaderId);
+    const nextIndex = (currentIndex + 1) % players.length;
+    return players[nextIndex].id;
+  }
+};
