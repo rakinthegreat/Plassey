@@ -38,9 +38,6 @@ function App() {
           {status === 'in_progress' && <GameBoard />}
         </main>
 
-        <footer className="mt-auto pt-12 text-slate-600 text-xs uppercase tracking-widest font-medium">
-          Internal Build v0.1.0 • P2P Star Topology
-        </footer>
       </div>
 
       {/* Rules Modal */}

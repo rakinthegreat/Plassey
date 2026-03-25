@@ -43,7 +43,7 @@ export class WebRTCManager {
         return;
       }
 
-      const wsUrl = `ws://${window.location.hostname}:8081`;
+      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8081';
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
