@@ -1,18 +1,32 @@
 import type { NetworkPayload } from "../types/game";
 import { useGameStore } from "../store/gameStore";
 import { GameEngine } from "./GameEngine";
-import Peer from "peerjs";
-import type { DataConnection } from "peerjs";
+
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
 
 export class WebRTCManager {
-  private peer: Peer | null = null;
-  private connections: Map<string, DataConnection> = new Map();
+  private ws: WebSocket | null = null;
   private isHost: boolean = false;
-  private chatHandlers: ((msg: { sender: string; text: string; time: string }) => void)[] = [];
+  private roomCode: string | null = null;
   private localPlayerId: string | null = null;
 
+  // Host state
+  private peerConnections: Map<string, RTCPeerConnection> = new Map();
+  private dataChannels: Map<string, RTCDataChannel> = new Map();
+
+  // Client state
+  private clientPeerConnection: RTCPeerConnection | null = null;
+  private clientDataChannel: RTCDataChannel | null = null;
+
+  private chatHandlers: ((msg: { sender: string; text: string; time: string }) => void)[] = [];
+
   constructor() {
-    console.log("WebRTCManager initialized");
+    console.log("WebRTCManager initialized with native WebRTC");
   }
 
   public onChatMessage(handler: (msg: { sender: string; text: string; time: string }) => void) {
@@ -22,128 +36,222 @@ export class WebRTCManager {
     };
   }
 
+  private connectWebSocket(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+
+      const wsUrl = `ws://${window.location.hostname}:8081`;
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        console.log('Connected to signaling server');
+        resolve();
+      };
+
+      this.ws.onerror = (err) => {
+        console.error('Signaling server error:', err);
+        reject(err);
+      };
+
+      this.ws.onmessage = this.handleSignalingMessage.bind(this);
+    });
+  }
+
+  private async handleSignalingMessage(event: MessageEvent) {
+    const msg = JSON.parse(event.data);
+
+    if (this.isHost) {
+      if (msg.type === 'client_join') {
+        await this.handleClientJoin(msg.sender);
+      } else if (msg.type === 'answer') {
+        const pc = this.peerConnections.get(msg.sender);
+        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+      } else if (msg.type === 'ice_candidate') {
+        const pc = this.peerConnections.get(msg.sender);
+        if (pc) await pc.addIceCandidate(new RTCIceCandidate(msg.payload));
+      }
+    } else {
+      if (msg.type === 'offer') {
+        await this.handleOffer(msg.payload);
+      } else if (msg.type === 'ice_candidate') {
+        if (this.clientPeerConnection) {
+          await this.clientPeerConnection.addIceCandidate(new RTCIceCandidate(msg.payload));
+        }
+      }
+    }
+  }
+
   public async initializeAsHost(roomCode: string) {
     this.isHost = true;
     this.localPlayerId = "HOST";
+    this.roomCode = roomCode;
 
-    if (this.peer) this.peer.destroy();
+    await this.connectWebSocket();
+
+    this.ws!.send(JSON.stringify({
+      type: 'host_room',
+      room: roomCode
+    }));
+
+    useGameStore.getState().setLobbyId(roomCode);
+    console.log(`Host peer globally initialized for room ${roomCode}`);
+  }
+
+  private async handleClientJoin(clientId: string) {
+    console.log(`Incoming connection request from client: ${clientId}`);
     
-    this.peer = new Peer(`plassey-host-${roomCode}`);
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    this.peerConnections.set(clientId, pc);
 
-    this.peer.on('open', (id) => {
-        console.log(`Host peer globally initialized: ${id}`);
-        useGameStore.getState().setLobbyId(roomCode);
-    });
+    pc.onicecandidate = (event) => {
+      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
+          type: 'ice_candidate',
+          room: this.roomCode,
+          sender: "HOST",
+          target: clientId,
+          payload: event.candidate
+        }));
+      }
+    };
 
-    this.peer.on('connection', (conn) => {
-        console.log(`Incoming connection from client: ${conn.peer}`);
+    const dataChannel = pc.createDataChannel('plassey-channel');
+    this.setupDataChannel(dataChannel, clientId);
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    this.ws!.send(JSON.stringify({
+      type: 'offer',
+      room: this.roomCode,
+      sender: "HOST",
+      target: clientId,
+      payload: offer
+    }));
+  }
+
+  private setupDataChannel(channel: RTCDataChannel, peerId: string) {
+    channel.onopen = () => {
+      console.log(`Data channel opened with ${peerId}`);
+      if (this.isHost) {
+        this.dataChannels.set(peerId, channel);
         
-        conn.on('open', () => {
-            this.connections.set(conn.peer, conn);
-            
-            // Immediately send current state to the joining peer so they don't see a blank lobby
-            const currentState = useGameStore.getState();
-            conn.send(JSON.stringify({
-                type: 'STATE_UPDATE',
-                senderId: 'HOST',
-                data: {
-                    lobbyId: currentState.lobbyId,
-                    status: currentState.status,
-                    phase: currentState.phase,
-                    players: currentState.players,
-                    currentRound: currentState.currentRound,
-                    leaderId: currentState.leaderId,
-                    proposedTeam: currentState.proposedTeam,
-                    teamVotes: currentState.teamVotes,
-                    missionVotes: currentState.missionVotes,
-                    failedProposals: currentState.failedProposals,
-                    roundHistory: currentState.roundHistory
-                }
-            }));
+        // Push full state to the newly joined client
+        const currentState = useGameStore.getState();
+        channel.send(JSON.stringify({
+            type: 'STATE_UPDATE',
+            senderId: 'HOST',
+            data: {
+                lobbyId: currentState.lobbyId,
+                status: currentState.status,
+                phase: currentState.phase,
+                players: currentState.players,
+                currentRound: currentState.currentRound,
+                leaderId: currentState.leaderId,
+                proposedTeam: currentState.proposedTeam,
+                teamVotes: currentState.teamVotes,
+                missionVotes: currentState.missionVotes,
+                failedProposals: currentState.failedProposals,
+                roundHistory: currentState.roundHistory,
+                winner: currentState.winner,
+                winReason: currentState.winReason,
+                pendingVoters: currentState.pendingVoters,
+                lastTeamVoteResult: currentState.lastTeamVoteResult,
+                lastMissionVoteResult: currentState.lastMissionVoteResult
+            }
+        }));
+      } else {
+        this.clientDataChannel = channel;
+        // As a client, immediately join the lobby officially
+        this.sendActionToHost({
+            type: "join_lobby",
+            senderId: this.localPlayerId || "",
+            data: { name: (this as any)._tempPlayerName || 'Unknown' }
         });
+      }
+    };
 
-        conn.on('data', (data) => {
-            this.handleIncomingMessage(data as string);
-        });
+    channel.onmessage = (event) => {
+      this.handleIncomingMessage(event.data);
+    };
 
-        conn.on('close', () => {
-            console.log(`Client disconnected: ${conn.peer}`);
-            this.connections.delete(conn.peer);
-            // We could trigger a connect loss update here if we want
-        });
-
-        conn.on('error', (err) => {
-            console.error(`Connection error from ${conn.peer}:`, err);
-        });
-    });
-
-    this.peer.on('error', (err) => {
-        console.error('Host peer error:', err);
-        if (err.type === 'unavailable-id') {
-            alert('This room code is already active!');
-        }
-    });
+    channel.onclose = () => {
+      console.log(`Data channel closed with ${peerId}`);
+      if (this.isHost) {
+        this.dataChannels.delete(peerId);
+        this.peerConnections.delete(peerId);
+      }
+    };
   }
 
   public async initializeAsClient(roomCode: string, playerName: string) {
     this.isHost = false;
-    this.localPlayerId = useGameStore.getState().localPlayerId;
+    this.roomCode = roomCode;
+    this.localPlayerId = useGameStore.getState().localPlayerId; 
 
-    if (this.peer) this.peer.destroy();
-    
-    this.peer = new Peer();
+    await this.connectWebSocket();
+    useGameStore.getState().setLobbyId(roomCode);
 
-    this.peer.on('open', (id) => {
-        console.log(`Client peer globally initialized: ${id}`);
-        useGameStore.getState().setLobbyId(roomCode);
-        
-        const conn = this.peer!.connect(`plassey-host-${roomCode}`, {
-            reliable: true
-        });
+    (this as any)._tempPlayerName = playerName;
 
-        conn.on('open', () => {
-            console.log('Connected to Host data channel');
-            this.connections.set('HOST', conn);
-            
-            this.sendActionToHost({
-              type: "join_lobby",
-              senderId: this.localPlayerId || "",
-              data: { name: playerName }
-            });
+    this.ws!.send(JSON.stringify({
+      type: 'join_room',
+      room: roomCode,
+      sender: this.localPlayerId
+    }));
+  }
 
-            this.sendActionToHost({
-              type: "chat",
-              senderId: this.localPlayerId || "",
-              data: { text: `SYSTEM: ${playerName || 'A commander'} has arrived.` }
-            });
-        });
+  private async handleOffer(offer: RTCSessionDescriptionInit) {
+    console.log('Received offer from Host, creating answer...');
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    this.clientPeerConnection = pc;
 
-        conn.on('data', (data) => {
-            this.handleIncomingMessage(data as string);
-        });
+    pc.onicecandidate = (event) => {
+      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
+          type: 'ice_candidate',
+          room: this.roomCode,
+          sender: this.localPlayerId,
+          target: "HOST",
+          payload: event.candidate
+        }));
+      }
+    };
 
-        conn.on('close', () => {
-            console.warn('Connection to host closed');
-            this.connections.delete('HOST');
-        });
+    pc.ondatachannel = (event) => {
+      this.setupDataChannel(event.channel, "HOST");
+      const playerName = (this as any)._tempPlayerName || 'A commander';
+      this.sendActionToHost({
+        type: "chat",
+        senderId: this.localPlayerId || "",
+        data: { text: `SYSTEM: ${playerName} has arrived.` }
+      });
+    };
 
-        conn.on('error', (err) => {
-            console.error('Connection to host error:', err);
-        });
-    });
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
-    this.peer.on('error', (err) => {
-        console.error('Client peer error:', err);
-        if (err.type === 'peer-unavailable') {
-            alert('Host not found. Check the room code.');
-        }
-    });
+    this.ws!.send(JSON.stringify({
+      type: 'answer',
+      room: this.roomCode,
+      sender: this.localPlayerId,
+      target: "HOST",
+      payload: answer
+    }));
   }
 
   public broadcastState(state: any) {
     if (!this.isHost) return;
     const message = JSON.stringify({ type: "STATE_UPDATE", senderId: "HOST", data: state });
-    this.sendToPeers(message);
+    this.dataChannels.forEach((channel) => {
+      if (channel.readyState === 'open') {
+        channel.send(message);
+      }
+    });
   }
 
   public sendActionToHost(payload: NetworkPayload) {
@@ -151,19 +259,10 @@ export class WebRTCManager {
     if (this.isHost) {
       this.handleIncomingMessage(message);
     } else {
-      const channel = this.connections.get("HOST");
-      if (channel && channel.open) {
-        channel.send(message);
+      if (this.clientDataChannel && this.clientDataChannel.readyState === 'open') {
+        this.clientDataChannel.send(message);
       }
     }
-  }
-
-  private sendToPeers(message: string) {
-    this.connections.forEach((channel) => {
-      if (channel.open) {
-        channel.send(message);
-      }
-    });
   }
 
   private handleIncomingMessage(message: string) {
@@ -203,210 +302,197 @@ export class WebRTCManager {
         }
 
         if (payload.type === "vote_team") {
+          const currentVotes = { ...store.teamVotes, [payload.senderId]: payload.data.vote as 'approve' | 'reject' };
           const newPending = store.pendingVoters.filter(id => id !== payload.senderId);
-          const newVotes = { ...store.teamVotes, [payload.senderId]: payload.data.vote };
           
-          if (newPending.length > 0) {
-            store.setMasterState({ teamVotes: newVotes, pendingVoters: newPending });
-            this.broadcastState({ ...store, teamVotes: newVotes, pendingVoters: newPending });
-          } else {
-            const result = GameEngine.tallyTeamVotes(store.players, newVotes);
+          store.setMasterState({ 
+            teamVotes: currentVotes,
+            pendingVoters: newPending
+          });
+
+          if (Object.keys(currentVotes).length === store.players.length) {
+            const result = GameEngine.tallyTeamVotes(store.players, currentVotes);
             const newState = {
-              teamVotes: newVotes,
-              pendingVoters: [],
+              phase: 'team_vote_reveal' as const,
               lastTeamVoteResult: result,
-              phase: 'team_vote_reveal' as const
+              pendingVoters: []
             };
             store.setMasterState(newState);
             this.broadcastState({ ...store, ...newState });
+          } else {
+            this.broadcastState({ ...store, teamVotes: currentVotes, pendingVoters: newPending });
           }
         }
 
         if (payload.type === "vote_mission") {
+          const newMissionVotes = [...store.missionVotes, payload.data.vote as 'support' | 'sabotage'];
           const newPending = store.pendingVoters.filter(id => id !== payload.senderId);
-          const newMissionVotes = [...store.missionVotes, payload.data.vote];
           
-          if (newPending.length > 0) {
-            store.setMasterState({ missionVotes: newMissionVotes, pendingVoters: newPending });
-            this.broadcastState({ ...store, missionVotes: newMissionVotes, pendingVoters: newPending });
-          } else {
-            const result = GameEngine.tallyMissionVotes(newMissionVotes, store.currentRound, store.players.length);
-            const newHistory = [...store.roundHistory];
-            newHistory[store.currentRound - 1] = result.passed ? 'nawab' : 'eic';
+          store.setMasterState({ 
+            missionVotes: newMissionVotes,
+            pendingVoters: newPending
+          });
 
+          if (newMissionVotes.length === store.proposedTeam.length) {
+            const result = GameEngine.tallyMissionVotes(newMissionVotes, store.currentRound, store.players.length);
+            const updatedHistory = [...store.roundHistory];
+            updatedHistory[store.currentRound - 1] = result.passed ? 'nawab' : 'eic';
+            
             const newState = {
-              missionVotes: newMissionVotes,
-              pendingVoters: [],
+              phase: 'mission_vote_reveal' as const,
+              roundHistory: updatedHistory,
               lastMissionVoteResult: result,
-              roundHistory: newHistory,
-              phase: 'mission_vote_reveal' as const
+              pendingVoters: []
             };
             store.setMasterState(newState);
             this.broadcastState({ ...store, ...newState });
+          } else {
+            this.broadcastState({ ...store, pendingVoters: newPending });
           }
         }
 
         if (payload.type === "continue_phase") {
           if (store.phase === 'team_vote_reveal') {
-            if (store.lastTeamVoteResult?.passed) {
+            const result = store.lastTeamVoteResult;
+            if (result?.passed) {
               const newState = {
                 phase: 'mission_voting' as const,
-                failedProposals: 0,
-                pendingVoters: store.proposedTeam
+                missionVotes: [],
+                pendingVoters: [...store.proposedTeam]
               };
               store.setMasterState(newState);
               this.broadcastState({ ...store, ...newState });
             } else {
-              const nextFailedCount = store.failedProposals + 1;
-              const nextLeaderId = GameEngine.getNextLeader(store.players, store.leaderId!);
-
-              if (nextFailedCount >= 5) {
-                // EIC auto-wins the round due to 5 failed proposals
-                const newHistory = [...store.roundHistory];
-                newHistory[store.currentRound - 1] = 'eic';
-                
-                // Immediately check endgame from 5-fails...
-                const endgame = GameEngine.checkEndgame(newHistory);
-                
-                if (endgame === 'eic') {
-                  const finalState = {
-                    phase: 'game_over' as const,
-                    winner: 'eic' as const,
-                    winReason: '3_missions_failed',
-                    roundHistory: newHistory
-                  };
-                  store.setMasterState(finalState);
-                  this.broadcastState({ ...store, ...finalState });
-                } else if (endgame === 'nawab') {
-                  const finalState = {
-                    phase: 'identify_mir_madan' as const,
-                    roundHistory: newHistory
-                  };
-                  store.setMasterState(finalState);
-                  this.broadcastState({ ...store, ...finalState });
-                } else {
-                  // EIC won the round but not 3 yet. Move to next round.
-                  const nextNextLeaderId = GameEngine.getNextLeader(store.players, nextLeaderId);
-                  const resetState = {
-                    phase: 'team_proposal' as const,
-                    currentRound: store.currentRound + 1,
-                    leaderId: nextNextLeaderId,
-                    roundHistory: newHistory,
-                    proposedTeam: [],
-                    teamVotes: {},
-                    missionVotes: [],
-                    failedProposals: 0,
-                    lastTeamVoteResult: null
-                  };
-                  store.setMasterState(resetState);
-                  this.broadcastState({ ...store, ...resetState });
-                }
-              } else {
-                // Team rejected, move to next leader proposal
-                const newState = {
-                  phase: 'team_proposal' as const,
-                  failedProposals: nextFailedCount,
-                  leaderId: nextLeaderId,
-                  teamVotes: {},
-                  lastTeamVoteResult: null
+              const nextLeaderIndex = (store.players.findIndex(p => p.id === store.leaderId) + 1) % store.players.length;
+              const newState = {
+                phase: 'team_proposal' as const,
+                leaderId: store.players[nextLeaderIndex].id,
+                proposedTeam: [],
+                teamVotes: {},
+                failedProposals: store.failedProposals + 1
+              };
+              if (newState.failedProposals >= 5) {
+                const gameOverState = {
+                  phase: 'game_over' as const,
+                  winner: 'eic' as const,
+                  winReason: '5_failed_proposals' as const
                 };
+                store.setMasterState(gameOverState);
+                this.broadcastState({ ...store, ...gameOverState });
+              } else {
                 store.setMasterState(newState);
                 this.broadcastState({ ...store, ...newState });
               }
             }
           } else if (store.phase === 'mission_vote_reveal') {
-            const endgame = GameEngine.checkEndgame(store.roundHistory);
-            
-            if (endgame === 'eic') {
-              const finalState = {
+            const eicWins = store.roundHistory.filter(v => v === 'eic').length;
+            const nawabWins = store.roundHistory.filter(v => v === 'nawab').length;
+
+            if (eicWins >= 3) {
+              const newState = {
                 phase: 'game_over' as const,
                 winner: 'eic' as const,
-                winReason: '3_missions_failed'
+                winReason: '3_missions_failed' as const
               };
-              store.setMasterState(finalState as any);
-              this.broadcastState({ ...store, ...finalState });
-            } else if (endgame === 'nawab') {
-              const finalState = {
-                phase: 'identify_mir_madan' as const
-              };
-              store.setMasterState(finalState as any);
-              this.broadcastState({ ...store, ...finalState });
+              store.setMasterState(newState);
+              this.broadcastState({ ...store, ...newState });
+            } else if (nawabWins >= 3) {
+              const newState = { phase: 'identify_mir_madan' as const };
+              store.setMasterState(newState);
+              this.broadcastState({ ...store, ...newState });
             } else {
-              const nextLeaderId = GameEngine.getNextLeader(store.players, store.leaderId!);
-              const resetState = {
+              const nextLeaderIndex = (store.players.findIndex(p => p.id === store.leaderId) + 1) % store.players.length;
+              const newState = {
                 phase: 'team_proposal' as const,
                 currentRound: store.currentRound + 1,
-                leaderId: nextLeaderId,
+                leaderId: store.players[nextLeaderIndex].id,
                 proposedTeam: [],
                 teamVotes: {},
                 missionVotes: [],
-                failedProposals: 0,
-                lastMissionVoteResult: null
+                failedProposals: 0
               };
-              store.setMasterState(resetState);
-              this.broadcastState({ ...store, ...resetState });
+              store.setMasterState(newState);
+              this.broadcastState({ ...store, ...newState });
             }
           }
         }
 
+        if (payload.type === "start_game") {
+          const playersWithRoles = GameEngine.assignRoles(store.players);
+          const newState = {
+            players: playersWithRoles,
+            status: 'in_progress' as const,
+            phase: 'role_reveal' as const,
+            currentRound: 1,
+            leaderId: playersWithRoles[Math.floor(Math.random() * playersWithRoles.length)].id,
+            failedProposals: 0,
+            roundHistory: Array(5).fill('pending') as any[]
+          };
+          store.setMasterState(newState);
+          this.broadcastState({ ...store, ...newState });
+        }
+
         if (payload.type === "guess_mir_madan") {
-            const endgameResult = GameEngine.tallyMirMadanGuess(store.players, payload.data.targetId);
-            const finalState = {
-                phase: 'game_over' as const,
-                ...endgameResult
-            };
-            store.setMasterState(finalState as any);
-            this.broadcastState({ ...store, ...finalState });
+          const targetPlayer = store.players.find(p => p.id === payload.data.targetId);
+          const newState = {
+            phase: 'game_over' as const,
+            winner: targetPlayer?.role === 'Mir Madan' ? 'eic' : 'nawab' as 'eic' | 'nawab',
+            winReason: targetPlayer?.role === 'Mir Madan' ? 'mir_madan_assassinated' : '3_missions_won_mir_madan_safe' as any
+          };
+          store.setMasterState(newState);
+          this.broadcastState({ ...store, ...newState });
         }
 
         if (payload.type === "return_to_lobby") {
-            const resetState = {
-                status: 'lobby' as const,
-                phase: 'lobby' as const,
-                currentRound: 1,
-                failedProposals: 0,
-                leaderId: null,
-                proposedTeam: [],
-                teamVotes: {},
-                missionVotes: [],
-                roundHistory: ['pending', 'pending', 'pending', 'pending', 'pending'],
-                winner: undefined,
-                winReason: undefined
-            };
-            const resetPlayers = store.players.map(p => ({ ...p, role: undefined, faction: undefined }));
-            store.setMasterState({ ...resetState, players: resetPlayers } as any);
-            this.broadcastState({ ...store, ...resetState, players: resetPlayers });
+          const newState = {
+            status: 'lobby' as const,
+            phase: 'lobby' as const,
+            proposedTeam: [],
+            teamVotes: {},
+            missionVotes: [],
+            roundHistory: Array(5).fill('pending'),
+             failedProposals: 0,
+             currentRound: 1
+          };
+          store.setMasterState(newState);
+          this.broadcastState({ ...store, ...newState });
         }
       }
 
       if (payload.type === "chat") {
-        const chatMsg = {
-          sender: payload.senderId,
-          text: payload.data.text,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const p = store.players.find(pl => pl.id === payload.senderId);
+        let senderName = "Unknown";
+        if (payload.senderId === "HOST") {
+            senderName = store.players.find(pl => pl.isHost)?.name || "High Command";
+        } else if (p) {
+            senderName = p.name;
+        }
+        
+        if (payload.data.text.startsWith("SYSTEM:")) {
+            senderName = "SYSTEM";
+            payload.data.text = payload.data.text.replace("SYSTEM: ", "");
+        }
 
+        this.chatHandlers.forEach(h => h({
+          sender: senderName,
+          text: payload.data.text,
+          time: timeStr
+        }));
+        
         if (this.isHost) {
-          const broadcastPayload: NetworkPayload = {
-            type: "chat_broadcast",
-            senderId: payload.senderId,
-            data: chatMsg
-          };
-          this.sendToPeers(JSON.stringify(broadcastPayload));
-          this.notifyChatHandlers(chatMsg);
+          const chatMsg = JSON.stringify(payload);
+          this.dataChannels.forEach((channel, peerId) => {
+            if (peerId !== payload.senderId && channel.readyState === 'open') {
+              channel.send(chatMsg);
+            }
+          });
         }
       }
 
-      if (payload.type === "chat_broadcast") {
-        this.notifyChatHandlers(payload.data);
-      }
-    } catch (error) {
-      console.error("Failed to parse incoming message:", error);
+    } catch (e) {
+      console.error("Failed to parse incoming message", e);
     }
-  }
-
-  private notifyChatHandlers(msg: { sender: string; text: string; time: string }) {
-    this.chatHandlers.forEach(h => h(msg));
   }
 }
 
