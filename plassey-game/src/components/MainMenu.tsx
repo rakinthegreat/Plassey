@@ -15,6 +15,7 @@ export const MainMenu: React.FC = () => {
   const setIsHost = useGameStore((state) => state.setIsHost);
   const resetSession = useGameStore((state) => state.resetSession);
   const lobbyId = useGameStore((state) => state.lobbyId);
+  const localPlayerId = useGameStore((state) => state.localPlayerId);
 
   React.useEffect(() => {
     // If we're on the Main Menu but have leftover lobby state, clean it.
@@ -36,7 +37,7 @@ export const MainMenu: React.FC = () => {
   const handleHost = () => {
     if (!playerName.trim()) return alert('Please enter a name');
     
-    const id = uuidv4();
+    const id = localPlayerId || uuidv4();
     const code = generateRoomCode();
     
     setLocalPlayerId(id);
@@ -58,7 +59,7 @@ export const MainMenu: React.FC = () => {
     if (roomCodeInput.length !== 4) return alert('Please enter a valid 4-letter room code');
     
     setIsHost(false); // Immediate Reset
-    const id = uuidv4();
+    const id = localPlayerId || uuidv4();
     const code = roomCodeInput.toUpperCase();
     
     setLocalPlayerId(id);

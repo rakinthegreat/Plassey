@@ -90,8 +90,19 @@ export class WebRTCManager {
       console.error(`[SIGNALING ERROR] ${msg.message}`);
       // Special case for identity collisions: Force reset state
       if (msg.message.includes('already has a commanding officer')) {
-        alert("Tactical Error: This room is already being hosted. Switching to Subordinate mode.");
-        useGameStore.getState().resetSession();
+        console.warn("[RESCUE] Identity collision detected. Falling back to Subordinate mode.");
+        const currentLobby = useGameStore.getState().lobbyId;
+        const currentName = useGameStore.getState().playerName;
+        
+        useGameStore.getState().setIsHost(false);
+        this.isHost = false; // Internal flag too
+        
+        if (currentLobby && currentName) {
+            console.log(`[RESCUE] Attempting auto-join as subordinate for room ${currentLobby}`);
+            this.initializeAsClient(currentLobby, currentName);
+        } else {
+            useGameStore.getState().resetSession();
+        }
       } else {
         alert(`Tactical Error: ${msg.message}`);
       }
