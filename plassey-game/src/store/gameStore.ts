@@ -21,6 +21,10 @@ interface GameStore extends GameState {
   // Allows setting the full master state
   setMasterState: (state: Partial<GameState>) => void;
   resetSession: () => void;
+  isMuted: boolean;
+  volume: number;
+  setMuted: (muted: boolean) => void;
+  setVolume: (volume: number) => void;
 }
 
 const initialState = {
@@ -42,6 +46,8 @@ const initialState = {
   lastTeamVoteResult: null,
   lastMissionVoteResult: null,
   networkStatus: 'none' as const,
+  isMuted: false,
+  volume: 0.5,
 };
 
 export const useGameStore = create<GameStore>()(
@@ -65,6 +71,8 @@ export const useGameStore = create<GameStore>()(
         return { ...prev, ...safeState };
       }),
       resetSession: () => set(initialState),
+      setMuted: (isMuted) => set({ isMuted }),
+      setVolume: (volume) => set({ volume }),
     }),
     {
       name: 'plassey-game-session',
@@ -88,6 +96,8 @@ export const useGameStore = create<GameStore>()(
         missionVotes: state.missionVotes,
         winner: state.winner,
         winReason: state.winReason,
+        isMuted: state.isMuted,
+        volume: state.volume,
       }),
     }
   )

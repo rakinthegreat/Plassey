@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from './store/gameStore';
 import { MainMenu } from './components/MainMenu';
 import { Lobby } from './components/Lobby';
 import { GameBoard } from './components/GameBoard';
 import { webRTCManager } from './lib/WebRTCManager';
-import { useEffect, useRef } from 'react';
+import { AudioController } from './components/AudioController';
+import { AudioToggle } from './components/AudioToggle';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
@@ -32,9 +33,16 @@ function App() {
     }
   };
 
+  const renderContent = () => {
+    if (status === 'menu') return <MainMenu />;
+    if (status === 'lobby') return <Lobby />;
+    if (status === 'in_progress') return <GameBoard />;
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0f18] text-slate-200 font-sans selection:bg-amber-500/30 selection:text-amber-200">
-      <div className="max-w-7xl mx-auto px-4 py-12 flex flex-col items-center justify-center min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 flex flex-col items-center justify-center min-h-screen">
         
         {/* Header Section (Visible on Menu) */}
         {status === 'menu' && (
@@ -67,10 +75,8 @@ function App() {
         )}
 
         {/* Dynamic Views */}
-        <main className="w-full flex justify-center items-center">
-          {status === 'menu' && <MainMenu />}
-          {status === 'lobby' && <Lobby />}
-          {status === 'in_progress' && <GameBoard />}
+        <main className="w-full flex justify-center items-center flex-1">
+          {renderContent()}
         </main>
 
         {/* Reconnecting Overlay */}
@@ -151,9 +157,9 @@ function App() {
                  <h3 className="text-amber-500 font-black uppercase tracking-widest mb-2 border-b border-slate-800 pb-2">Game Flow</h3>
                  <ol className="list-decimal list-inside space-y-2 marker:text-slate-500 marker:font-bold">
                    <li className="mb-2"><strong>Role Reveal ("Eyes Open"):</strong> Before the first round begins, EIC members and Mir Madan are shown their targets in the tactical sidebar. <em>Once you click "Continue to Front" and the first proposal starts, all identities are permanently hidden. You must rely entirely on your memory!</em></li>
-                   <li><strong>Team Proposal:</strong> The current Leader selects a specific number of players to lead the campaign.</li>
-                   <li><strong>Voting:</strong> Every player openly votes to Approve or Reject the proposed team. If rejected, leadership rotates. If 5 consecutive teams are rejected, the EIC wins by default.</li>
-                   <li><strong>Execution:</strong> If approved, the players on the mission privately vote to <em>Support</em> or <em>Sabotage</em>. A single Sabotage fails the campaign (except in round 4 for 7+ players, where 2 Sabotages are required).</li>
+                    <li><strong>Team Proposal:</strong> The current Leader selects a specific number of players to lead the campaign.</li>
+                    <li><strong>Voting:</strong> Every player openly votes to Approve or Reject the proposed team. If rejected, leadership rotates. If 5 consecutive teams are rejected, the EIC wins by default.</li>
+                    <li><strong>Execution:</strong> If approved, the players on the mission privately vote to <em>Support</em> or <em>Sabotage</em>. A single Sabotage fails the campaign (except in round 4 for 7+ players, where 2 Sabotages are required).</li>
                  </ol>
                </section>
 
@@ -176,6 +182,10 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Atmospheric Audio Engine */}
+      <AudioController />
+      <AudioToggle />
     </div>
   );
 }
