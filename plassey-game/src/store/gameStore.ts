@@ -77,6 +77,14 @@ export const useGameStore = create<GameStore>()(
         isHost: state.isHost,
         status: state.status,
         phase: state.phase,
+        players: state.players,
+        currentRound: state.currentRound,
+        failedProposals: state.failedProposals,
+        leaderId: state.leaderId,
+        proposedTeam: state.proposedTeam,
+        roundHistory: state.roundHistory,
+        winner: state.winner,
+        winReason: state.winReason,
       }),
     }
   )
