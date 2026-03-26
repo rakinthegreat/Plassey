@@ -33,7 +33,7 @@ export class WebRTCManager {
   private clientPeerConnection: RTCPeerConnection | null = null;
   private clientDataChannel: RTCDataChannel | null = null;
   // Buffering early ICE candidates
-  private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
+  private pendingCandidates: Record<string, RTCIceCandidateInit[]> = {};
 
   private chatHandlers: ((msg: { sender: string; senderName?: string; text: string; time: string }) => void)[] = [];
 
@@ -90,11 +90,10 @@ export class WebRTCManager {
         const candidate = msg.candidate || msg.payload;
         if (pc && candidate) {
           if (pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("ICE Add Error:", e));
           } else {
-            const pending = this.pendingCandidates.get(peerId) || [];
-            pending.push(candidate);
-            this.pendingCandidates.set(peerId, pending);
+            if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
+            this.pendingCandidates[peerId].push(candidate);
           }
         }
       }
@@ -104,13 +103,13 @@ export class WebRTCManager {
       } else if (msg.type === 'ice_candidate') {
         const pc = this.clientPeerConnection;
         const candidate = msg.candidate || msg.payload;
+        const peerId = "HOST";
         if (pc && candidate) {
           if (pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("ICE Add Error:", e));
           } else {
-            const pending = this.pendingCandidates.get("HOST") || [];
-            pending.push(candidate);
-            this.pendingCandidates.set("HOST", pending);
+            if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
+            this.pendingCandidates[peerId].push(candidate);
           }
         }
       }
@@ -280,13 +279,13 @@ export class WebRTCManager {
   }
 
   private async drainPendingCandidates(peerId: string, pc: RTCPeerConnection) {
-    const pending = this.pendingCandidates.get(peerId);
+    const pending = this.pendingCandidates[peerId];
     if (pending) {
       console.log(`Draining ${pending.length} pending candidates for ${peerId}`);
       for (const candidate of pending) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.error("ICE Drain Error:", e));
       }
-      this.pendingCandidates.delete(peerId);
+      delete this.pendingCandidates[peerId];
     }
   }
 
