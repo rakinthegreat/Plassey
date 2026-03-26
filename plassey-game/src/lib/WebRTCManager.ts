@@ -6,9 +6,11 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: [
       'stun:stun.l.google.com:19302', 
+      'stun:stun1.l.google.com:19302',
+      'stun:stun2.l.google.com:19302',
       'stun:global.stun.twilio.com:3478',
-      'stun:74.125.143.127:19302', // Google IP Fallback
-      'stun:3.235.111.105:3478'    // Twilio IP Fallback
+      'stun:74.125.143.127:19302',
+      'stun:3.235.111.105:3478'
     ] },
     { 
       urls: [
@@ -18,6 +20,12 @@ const ICE_SERVERS = {
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
+    },
+    // Emergency Fallback (Generic Public TURN - Use with caution)
+    {
+      urls: ['turn:u1.block-client.com:3478', 'turn:u2.block-client.com:3478'],
+      username: 'block-client',
+      credential: 'block-client'
     }
   ],
   iceTransportPolicy: 'all' as RTCIceTransportPolicy,
@@ -374,6 +382,9 @@ export class WebRTCManager {
 
   private async testConnectivity() {
     console.log('[NETWORK TEST] Starting proactive connectivity check...');
+    // Reset status for new test
+    useGameStore.getState().setNetworkStatus('none');
+    
     try {
       const pc = new RTCPeerConnection(ICE_SERVERS);
       pc.onicecandidate = (event) => {
@@ -391,16 +402,23 @@ export class WebRTCManager {
       };
 
       pc.onicecandidateerror = (event: any) => {
-        console.warn(`[NETWORK TEST ERROR] ${event.errorCode}: ${event.errorText} (${event.url})`);
+        if (event.errorCode >= 600 && event.errorCode <= 799) {
+          console.warn(`[NETWORK TEST ERROR] ${event.errorCode}: ${event.errorText} (${event.url})`);
+        }
       };
 
       // Force gathering by creating a dummy channel and offer
-      pc.createDataChannel('test');
+      pc.createDataChannel('test-probe');
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // Give it a few seconds then cleanup
-      setTimeout(() => pc.close(), 5000);
+      // Give it more time (15s) for slow discovery
+      setTimeout(() => {
+        if (pc.signalingState !== 'closed') {
+          console.log('[NETWORK TEST] Finished gathering cycle.');
+          pc.close();
+        }
+      }, 15000);
     } catch (e) {
       console.error('[NETWORK TEST] Failed to initialize:', e);
     }
