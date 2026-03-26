@@ -4,19 +4,16 @@ import { GameEngine } from "./GameEngine";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:openrelay.metered.ca:80'] },
     { 
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-    { 
-      urls: 'turn:openrelay.metered.ca:443',
+      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
-  ]
+  ],
+  iceTransportPolicy: 'all' as RTCIceTransportPolicy,
+  iceCandidatePoolSize: 10
 };
 
 export class WebRTCManager {
@@ -141,15 +138,27 @@ export class WebRTCManager {
       this.peerConnections.set(clientId, pc);
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({
-            type: 'ice_candidate',
-            roomCode: this.roomCode,
-            senderId: "HOST",
-            targetId: clientId,
-            candidate: event.candidate
-          }));
+        if (event.candidate) {
+          const type = event.candidate.candidate.split(' ')[7];
+          console.log(`[${clientId}] Local ICE Candidate: ${type} (${event.candidate.candidate})`);
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+              type: 'ice_candidate',
+              roomCode: this.roomCode,
+              senderId: "HOST",
+              targetId: clientId,
+              candidate: event.candidate
+            }));
+          }
         }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[${clientId}] ICE Connection State: ${pc.iceConnectionState}`);
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log(`[${clientId}] Peer Connection State: ${pc.connectionState}`);
       };
 
       console.log(`[${clientId}] 2. Creating Data Channel...`);
@@ -261,15 +270,27 @@ export class WebRTCManager {
       this.clientPeerConnection = pc;
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({
-            type: 'ice_candidate',
-            roomCode: this.roomCode,
-            senderId: this.localPlayerId,
-            targetId: "HOST",
-            candidate: event.candidate
-          }));
+        if (event.candidate) {
+          const type = event.candidate.candidate.split(' ')[7];
+          console.log(`[CLIENT] Local ICE Candidate: ${type} (${event.candidate.candidate})`);
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+              type: 'ice_candidate',
+              roomCode: this.roomCode,
+              senderId: this.localPlayerId,
+              targetId: "HOST",
+              candidate: event.candidate
+            }));
+          }
         }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[CLIENT] ICE Connection State: ${pc.iceConnectionState}`);
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log(`[CLIENT] Peer Connection State: ${pc.connectionState}`);
       };
 
       pc.ondatachannel = (event) => {
