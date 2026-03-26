@@ -17,35 +17,37 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    const { type, room, sender, target } = msg;
+    const { type, room, sender, target, roomCode, senderId, targetId } = msg;
 
     if (type === 'host_room') {
-      hosts.set(room, ws);
+      hosts.set(room || roomCode, ws);
       isHost = true;
-      roomId = room;
-      console.log(`Host registered room: ${room}`);
+      roomId = room || roomCode;
+      console.log(`Host registered room: ${roomId}`);
     } 
     else if (type === 'join_room') {
-      clients.set(sender, ws);
-      clientId = sender;
-      roomId = room;
-      const hostWs = hosts.get(room);
+      const actualSender = sender || senderId;
+      const actualRoom = room || roomCode;
+      clients.set(actualSender, ws);
+      clientId = actualSender;
+      roomId = actualRoom;
+      const hostWs = hosts.get(actualRoom);
       if (hostWs && hostWs.readyState === WebSocket.OPEN) {
-        hostWs.send(JSON.stringify({ type: 'client_join', sender }));
-        console.log(`Client ${sender} joined room ${room}`);
+        hostWs.send(JSON.stringify({ type: 'client_join', sender: actualSender }));
+        console.log(`Client ${actualSender} joined room ${actualRoom}`);
       }
     } 
     else if (type === 'offer' || type === 'answer' || type === 'ice_candidate') {
       // Route between host and client
       if (isHost) {
         // Host routing to target client
-        const clientWs = clients.get(target);
+        const clientWs = clients.get(target || targetId);
         if (clientWs && clientWs.readyState === WebSocket.OPEN) {
           clientWs.send(JSON.stringify(msg));
         }
       } else {
         // Client routing to host
-        const hostWs = hosts.get(room || roomId);
+        const hostWs = hosts.get(room || roomCode || roomId);
         if (hostWs && hostWs.readyState === WebSocket.OPEN) {
           hostWs.send(JSON.stringify(msg));
         }

@@ -4,8 +4,7 @@ import { GameEngine } from "./GameEngine";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302', 'stun:stun4.l.google.com:19302'] }
   ]
 };
 
@@ -23,13 +22,13 @@ export class WebRTCManager {
   private clientPeerConnection: RTCPeerConnection | null = null;
   private clientDataChannel: RTCDataChannel | null = null;
 
-  private chatHandlers: ((msg: { sender: string; text: string; time: string }) => void)[] = [];
+  private chatHandlers: ((msg: { sender: string; senderName?: string; text: string; time: string }) => void)[] = [];
 
   constructor() {
     console.log("WebRTCManager initialized with native WebRTC");
   }
 
-  public onChatMessage(handler: (msg: { sender: string; text: string; time: string }) => void) {
+  public onChatMessage(handler: (msg: { sender: string; senderName?: string; text: string; time: string }) => void) {
     this.chatHandlers.push(handler);
     return () => {
       this.chatHandlers = this.chatHandlers.filter(h => h !== handler);
@@ -70,15 +69,21 @@ export class WebRTCManager {
         const pc = this.peerConnections.get(msg.sender);
         if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
       } else if (msg.type === 'ice_candidate') {
-        const pc = this.peerConnections.get(msg.sender);
-        if (pc) await pc.addIceCandidate(new RTCIceCandidate(msg.payload));
+        const targetPC = this.peerConnections.get(msg.sender || msg.senderId);
+        const candidate = msg.candidate || msg.payload;
+        if (targetPC && candidate) {
+          await targetPC.addIceCandidate(new RTCIceCandidate(candidate));
+        }
       }
     } else {
       if (msg.type === 'offer') {
         await this.handleOffer(msg.payload);
       } else if (msg.type === 'ice_candidate') {
         if (this.clientPeerConnection) {
-          await this.clientPeerConnection.addIceCandidate(new RTCIceCandidate(msg.payload));
+          const candidate = msg.candidate || msg.payload;
+          if (candidate) {
+            await this.clientPeerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          }
         }
       }
     }
@@ -110,10 +115,10 @@ export class WebRTCManager {
       if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           type: 'ice_candidate',
-          room: this.roomCode,
-          sender: "HOST",
-          target: clientId,
-          payload: event.candidate
+          roomCode: this.roomCode,
+          senderId: "HOST",
+          targetId: clientId,
+          candidate: event.candidate
         }));
       }
     };
@@ -213,10 +218,10 @@ export class WebRTCManager {
       if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           type: 'ice_candidate',
-          room: this.roomCode,
-          sender: this.localPlayerId,
-          target: "HOST",
-          payload: event.candidate
+          roomCode: this.roomCode,
+          senderId: this.localPlayerId,
+          targetId: "HOST",
+          candidate: event.candidate
         }));
       }
     };
@@ -459,24 +464,29 @@ export class WebRTCManager {
         }
       }
 
-      if (payload.type === "chat") {
+      if (payload.type === "chat" || (payload as any).action === "chat") {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const p = store.players.find(pl => pl.id === payload.senderId);
-        let senderName = "Unknown";
-        if (payload.senderId === "HOST") {
-            senderName = store.players.find(pl => pl.isHost)?.name || "High Command";
-        } else if (p) {
-            senderName = p.name;
+        let senderDisplayName = (payload as any).senderName || "Unknown";
+        
+        if (senderDisplayName === "Unknown") {
+            if (payload.senderId === "HOST") {
+                senderDisplayName = store.players.find(pl => pl.isHost)?.name || "High Command";
+            } else if (p) {
+                senderDisplayName = p.name;
+            }
         }
         
-        if (payload.data.text.startsWith("SYSTEM:")) {
-            senderName = "SYSTEM";
-            payload.data.text = payload.data.text.replace("SYSTEM: ", "");
+        let text = payload.data?.text || (payload as any).text || "";
+        if (text.startsWith("SYSTEM:")) {
+            senderDisplayName = "SYSTEM";
+            text = text.replace("SYSTEM: ", "");
         }
 
         this.chatHandlers.forEach(h => h({
-          sender: senderName,
-          text: payload.data.text,
+          sender: payload.senderId,
+          senderName: senderDisplayName,
+          text: text,
           time: timeStr
         }));
         

@@ -4,6 +4,7 @@ import { webRTCManager } from '../lib/WebRTCManager';
 
 interface Message {
   sender: string;
+  senderName?: string;
   text: string;
   time: string;
 }
@@ -36,11 +37,15 @@ export const ChatBox: React.FC = () => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
+    const localPlayer = players.find(p => p.id === localPlayerId);
+    const senderName = localPlayer ? localPlayer.name : 'Unknown';
+
     webRTCManager.sendActionToHost({
-      type: 'chat',
+      action: 'chat',
       senderId: localPlayerId || 'unknown',
-      data: { text: inputText }
-    });
+      senderName: senderName,
+      text: inputText
+    } as any);
 
     setInputText('');
   };
@@ -71,7 +76,7 @@ export const ChatBox: React.FC = () => {
         {messages.map((msg, i) => (
           <div key={i} className={`flex flex-col ${msg.sender === localPlayerId ? 'items-end' : 'items-start'}`}>
             <span className="text-[8px] font-bold text-slate-500 uppercase mb-0.5 px-1 tracking-tighter">
-              {getPlayerName(msg.sender)} • {msg.time}
+              {msg.senderName || getPlayerName(msg.sender)} • {msg.time}
             </span>
             <div className={`px-3 py-2 rounded-2xl max-w-[85%] text-sm ${
               msg.sender === localPlayerId 
