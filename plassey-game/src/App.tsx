@@ -3,10 +3,34 @@ import { useGameStore } from './store/gameStore';
 import { MainMenu } from './components/MainMenu';
 import { Lobby } from './components/Lobby';
 import { GameBoard } from './components/GameBoard';
+import { webRTCManager } from './lib/WebRTCManager';
+import { useEffect, useRef } from 'react';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
-  const status = useGameStore((state) => state.status);
+  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession } = useGameStore();
+  const rejoinAttempted = useRef(false);
+
+  useEffect(() => {
+    // Auto-rejoin on refresh if session exists
+    if (status !== 'menu' && lobbyId && localPlayerId && playerName && !rejoinAttempted.current) {
+        console.log(`[SESSION] Recommencing session for ${playerName} in room ${lobbyId}`);
+        rejoinAttempted.current = true;
+        
+        if (isHost) {
+            webRTCManager.initializeAsHost(lobbyId);
+        } else {
+            webRTCManager.initializeAsClient(lobbyId, playerName);
+        }
+    }
+  }, [status, lobbyId, localPlayerId, playerName, isHost]);
+
+  const handleLeaveGame = () => {
+    if (window.confirm("Abandon current campaign and return to Main Menu?")) {
+        resetSession();
+        window.location.reload(); // Hard refresh to clear classes/listeners
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0f18] text-slate-200 font-sans selection:bg-amber-500/30 selection:text-amber-200">
@@ -29,6 +53,17 @@ function App() {
                <span>📖</span> Rules of Engagement
             </button>
           </div>
+        )}
+
+        {status !== 'menu' && (
+            <div className="fixed top-6 right-6 z-40">
+                <button
+                    onClick={handleLeaveGame}
+                    className="p-2 bg-slate-900/50 hover:bg-rose-900/40 border border-slate-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-rose-400 transition-all flex items-center gap-2"
+                >
+                    <span>🚪</span> Leave Campaign
+                </button>
+            </div>
         )}
 
         {/* Dynamic Views */}

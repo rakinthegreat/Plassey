@@ -11,6 +11,8 @@ export const MainMenu: React.FC = () => {
   const setLocalPlayerId = useGameStore((state) => state.setLocalPlayerId);
   const setLobbyId = useGameStore((state) => state.setLobbyId);
   const updatePlayers = useGameStore((state) => state.updatePlayers);
+  const setStorePlayerName = useGameStore((state) => state.setPlayerName);
+  const setIsHost = useGameStore((state) => state.setIsHost);
 
   const generateRoomCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -29,6 +31,8 @@ export const MainMenu: React.FC = () => {
     
     setLocalPlayerId(id);
     setLobbyId(code);
+    setStorePlayerName(playerName);
+    setIsHost(true);
     
     // Initialize WebRTC as Host
     webRTCManager.initializeAsHost(code);
@@ -48,6 +52,8 @@ export const MainMenu: React.FC = () => {
     
     setLocalPlayerId(id);
     setLobbyId(code);
+    setStorePlayerName(playerName);
+    setIsHost(false);
     
     // Initialize WebRTC as Client
     webRTCManager.initializeAsClient(code, playerName);
