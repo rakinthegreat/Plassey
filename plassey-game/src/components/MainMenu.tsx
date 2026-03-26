@@ -13,6 +13,16 @@ export const MainMenu: React.FC = () => {
   const updatePlayers = useGameStore((state) => state.updatePlayers);
   const setStorePlayerName = useGameStore((state) => state.setPlayerName);
   const setIsHost = useGameStore((state) => state.setIsHost);
+  const resetSession = useGameStore((state) => state.resetSession);
+  const lobbyId = useGameStore((state) => state.lobbyId);
+
+  React.useEffect(() => {
+    // If we're on the Main Menu but have leftover lobby state, clean it.
+    if (lobbyId) {
+      console.log("[IDENTITY] Deep Scour: Clearing leftover tactical metadata.");
+      resetSession();
+    }
+  }, [lobbyId, resetSession]);
 
   const generateRoomCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';

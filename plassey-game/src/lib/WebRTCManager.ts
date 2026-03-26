@@ -88,7 +88,13 @@ export class WebRTCManager {
 
     if (msg.type === 'error') {
       console.error(`[SIGNALING ERROR] ${msg.message}`);
-      alert(`Tactical Error: ${msg.message}`);
+      // Special case for identity collisions: Force reset state
+      if (msg.message.includes('already has a commanding officer')) {
+        alert("Tactical Error: This room is already being hosted. Switching to Subordinate mode.");
+        useGameStore.getState().resetSession();
+      } else {
+        alert(`Tactical Error: ${msg.message}`);
+      }
       return;
     }
 
