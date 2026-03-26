@@ -681,12 +681,16 @@ export class WebRTCManager {
             text = text.replace("SYSTEM: ", "");
         }
 
-        this.chatHandlers.forEach(h => h({
-          sender: payload.senderId,
-          senderName: senderDisplayName,
-          text: text,
-          time: timeStr
-        }));
+        // Only trigger UI handlers for messages from OTHER players
+        // (Local messages are handled optimistically in the component)
+        if (payload.senderId !== this.localPlayerId) {
+          this.chatHandlers.forEach(h => h({
+            sender: payload.senderId,
+            senderName: senderDisplayName,
+            text: text,
+            time: timeStr
+          }));
+        }
         
         if (this.isHost) {
           const chatMsg = JSON.stringify(payload);
