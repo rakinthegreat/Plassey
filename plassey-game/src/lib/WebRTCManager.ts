@@ -4,7 +4,18 @@ import { GameEngine } from "./GameEngine";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302', 'stun:stun4.l.google.com:19302'] }
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { 
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    { 
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
@@ -21,6 +32,8 @@ export class WebRTCManager {
   // Client state
   private clientPeerConnection: RTCPeerConnection | null = null;
   private clientDataChannel: RTCDataChannel | null = null;
+  // Buffering early ICE candidates
+  private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
 
   private chatHandlers: ((msg: { sender: string; senderName?: string; text: string; time: string }) => void)[] = [];
 
@@ -67,22 +80,37 @@ export class WebRTCManager {
         await this.handleClientJoin(msg.sender);
       } else if (msg.type === 'answer') {
         const pc = this.peerConnections.get(msg.sender);
-        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.payload));
+          await this.drainPendingCandidates(msg.sender, pc);
+        }
       } else if (msg.type === 'ice_candidate') {
-        const targetPC = this.peerConnections.get(msg.sender || msg.senderId);
+        const peerId = msg.sender || msg.senderId;
+        const pc = this.peerConnections.get(peerId);
         const candidate = msg.candidate || msg.payload;
-        if (targetPC && candidate) {
-          await targetPC.addIceCandidate(new RTCIceCandidate(candidate));
+        if (pc && candidate) {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } else {
+            const pending = this.pendingCandidates.get(peerId) || [];
+            pending.push(candidate);
+            this.pendingCandidates.set(peerId, pending);
+          }
         }
       }
     } else {
       if (msg.type === 'offer') {
         await this.handleOffer(msg.payload);
       } else if (msg.type === 'ice_candidate') {
-        if (this.clientPeerConnection) {
-          const candidate = msg.candidate || msg.payload;
-          if (candidate) {
-            await this.clientPeerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        const pc = this.clientPeerConnection;
+        const candidate = msg.candidate || msg.payload;
+        if (pc && candidate) {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } else {
+            const pending = this.pendingCandidates.get("HOST") || [];
+            pending.push(candidate);
+            this.pendingCandidates.set("HOST", pending);
           }
         }
       }
@@ -237,16 +265,29 @@ export class WebRTCManager {
     };
 
     await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    await this.drainPendingCandidates("HOST", pc);
+    
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
     this.ws!.send(JSON.stringify({
       type: 'answer',
-      room: this.roomCode,
-      sender: this.localPlayerId,
-      target: "HOST",
+      roomCode: this.roomCode,
+      senderId: this.localPlayerId,
+      targetId: "HOST",
       payload: answer
     }));
+  }
+
+  private async drainPendingCandidates(peerId: string, pc: RTCPeerConnection) {
+    const pending = this.pendingCandidates.get(peerId);
+    if (pending) {
+      console.log(`Draining ${pending.length} pending candidates for ${peerId}`);
+      for (const candidate of pending) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+      this.pendingCandidates.delete(peerId);
+    }
   }
 
   public broadcastState(state: any) {

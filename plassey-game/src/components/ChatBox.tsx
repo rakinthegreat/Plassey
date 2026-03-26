@@ -39,6 +39,16 @@ export const ChatBox: React.FC = () => {
 
     const localPlayer = players.find(p => p.id === localPlayerId);
     const senderName = localPlayer ? localPlayer.name : 'Unknown';
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Optimistic UI Update
+    const optimisticMsg: Message = {
+      sender: localPlayerId || 'unknown',
+      senderName: senderName,
+      text: inputText,
+      time: timeStr
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
 
     webRTCManager.sendActionToHost({
       action: 'chat',
