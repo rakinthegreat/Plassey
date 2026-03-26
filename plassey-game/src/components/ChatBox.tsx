@@ -27,9 +27,17 @@ export const ChatBox: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Scroll to bottom on new messages
+    // Smart Scroll: Auto-scroll to bottom only if user was already at/near the bottom
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isAtBottom = scrollHeight - scrollTop <= clientHeight + 150; // 150px threshold
+
+      if (isAtBottom) {
+        scrollRef.current.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
     }
   }, [messages]);
 

@@ -505,8 +505,8 @@ export const GameBoard: React.FC = () => {
       {/* Sidebar: Players & Chat */}
       <aside className="w-full lg:w-1/3 flex flex-col gap-6 order-2 lg:order-1 h-[60vh] lg:h-full shrink-0">
         
-        {/* Compact Player List */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0 overflow-y-auto custom-scrollbar" style={{ maxHeight: '50%' }}>
+        {/* Compact Player List - Capped at 40% to preserve chat space */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0 overflow-y-auto custom-scrollbar" style={{ maxHeight: '40%' }}>
           <div className="flex items-center justify-between mb-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">The General Staff</h4>
               <div className="flex gap-1">
