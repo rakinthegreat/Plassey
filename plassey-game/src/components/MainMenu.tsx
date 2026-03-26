@@ -279,6 +279,7 @@ export const MainMenu: React.FC = () => {
             <span>Join Existing Front</span>
           </button>
         </div>
+
       </div>
       
       <p className="mt-8 text-slate-500 text-[10px] uppercase tracking-widest text-center">Battle of Plassey 1757 • P2P Deduction</p>

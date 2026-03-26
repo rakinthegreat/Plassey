@@ -12,6 +12,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.0"),
+        .package(name: "CordovaPluginAndroidPermissions", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginAndroidPermissions"),
         .package(name: "CordovaPluginBackgroundMode", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginBackgroundMode"),
         .package(name: "CordovaPluginWebsocketServer", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginWebsocketServer"),
         .package(name: "CordovaPluginZeroconf", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginZeroconf")
@@ -22,6 +23,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
+                .product(name: "CordovaPluginAndroidPermissions", package: "CordovaPluginAndroidPermissions"),
                 .product(name: "CordovaPluginBackgroundMode", package: "CordovaPluginBackgroundMode"),
                 .product(name: "CordovaPluginWebsocketServer", package: "CordovaPluginWebsocketServer"),
                 .product(name: "CordovaPluginZeroconf", package: "CordovaPluginZeroconf")

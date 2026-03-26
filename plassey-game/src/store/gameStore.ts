@@ -86,7 +86,12 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'plassey-game-session',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => {
+        // Use localStorage for native apps (Android/iOS) to persist sound/settings
+        // Use sessionStorage for browsers to keep sessions tab-specific
+        const isNative = !!(window as any).cordova || !!(window as any).Capacitor;
+        return isNative ? localStorage : sessionStorage;
+      }),
       // Only persist critical info for rejoining
       partialize: (state) => ({
         localPlayerId: state.localPlayerId,

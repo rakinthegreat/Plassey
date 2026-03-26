@@ -402,7 +402,7 @@ export const GameBoard: React.FC = () => {
             {isMirJafar ? (
               <div className="w-full max-w-lg text-center">
                 <p className="text-slate-400 mb-8">
-                  The Company has secured three victories. As <strong className="text-rose-500 mx-1">Mir Jafar</strong>, you must assassinate the loyalist general 
+                  Nawab's side has secured three victories. As <strong className="text-rose-500 mx-1">Mir Jafar</strong>, you must assassinate the loyalist general 
                   <strong className="text-amber-500 mx-1">Mir Madan</strong> 
                   to shatter the Nawab's army and win the game. Select your target.
                 </p>
@@ -427,7 +427,7 @@ export const GameBoard: React.FC = () => {
                   <div className="text-6xl mb-6 animate-pulse drop-shadow-2xl">🗡️</div>
                   <h3 className="text-xl font-bold text-rose-500 uppercase tracking-widest mb-2">The Traitors Are Plotting</h3>
                   <p className="text-slate-400 max-w-sm text-center italic">
-                    The East India Company won 3 campaigns. They are now hunting for Mir Madan. Remain silent and pray they aim poorly.
+                    The Nawab's side won 3 campaigns. The EIC are now hunting for Mir Madan. Remain silent and pray they aim poorly.
                   </p>
                </div>
             )}
