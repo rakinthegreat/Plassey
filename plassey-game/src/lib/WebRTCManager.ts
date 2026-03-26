@@ -2,41 +2,7 @@ import type { NetworkPayload } from "../types/game";
 import { useGameStore } from "../store/gameStore";
 import { GameEngine } from "./GameEngine";
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: [
-      'stun:stun.l.google.com:19302', 
-      'stun:stun1.l.google.com:19302',
-      'stun:stun2.l.google.com:19302',
-      'stun:global.stun.twilio.com:3478',
-      'stun:stun.cloudflare.com:3478',
-      // IP Fallbacks (DNS Bypass)
-      'stun:74.125.143.127:19302', // Google
-      'stun:173.194.202.127:19302', // Google Alternative
-      'stun:3.235.111.105:3478',    // Twilio
-      'stun:108.162.192.1:3478'     // Cloudflare
-    ] },
-    { 
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turns:openrelay.metered.ca:443'
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-    {
-      urls: [
-        'turn:u1.block-client.com:3478', 
-        'turn:u2.block-client.com:3478'
-      ],
-      username: 'block-client',
-      credential: 'block-client'
-    }
-  ],
-  iceTransportPolicy: 'all' as RTCIceTransportPolicy,
-  iceCandidatePoolSize: 10
-};
+// Remove static ICE_SERVERS handled via dynamic injection
 
 export class WebRTCManager {
   private ws: WebSocket | null = null;
@@ -53,6 +19,11 @@ export class WebRTCManager {
   private clientDataChannel: RTCDataChannel | null = null;
   // Buffering early ICE candidates
   private pendingCandidates: Record<string, RTCIceCandidateInit[]> = {};
+  private iceServers: RTCIceServer[] = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:74.125.143.127:19302' } // IP Fallback
+  ];
 
   private chatHandlers: ((msg: { sender: string; senderName?: string; text: string; time: string }) => void)[] = [];
 
@@ -77,8 +48,10 @@ export class WebRTCManager {
       const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8081';
       this.ws = new WebSocket(wsUrl);
 
-      this.ws.onopen = () => {
+      this.ws.onopen = async () => {
         console.log('Connected to signaling server');
+        // Pre-fetch TURN credentials
+        await this.fetchTurnCredentials();
         resolve();
       };
 
@@ -87,8 +60,23 @@ export class WebRTCManager {
         reject(err);
       };
 
+      this.ws.onclose = () => console.log('WebSocket signaling connection closed.');
+
       this.ws.onmessage = this.handleSignalingMessage.bind(this);
     });
+  }
+
+  async fetchTurnCredentials() {
+    try {
+      console.log("Fetching premium TURN credentials...");
+      const response = await fetch("https://plassey.metered.live/api/v1/turn/credentials?apiKey=af0229bc3759ddf9c0db4176fd4ad3b79929");
+      const meteredServers = await response.json();
+      // Combine the fetched TURN servers with the default STUN servers
+      this.iceServers = [...this.iceServers, ...meteredServers];
+      console.log("TURN servers loaded successfully:", this.iceServers.length);
+    } catch (error) {
+      console.error("Failed to fetch TURN credentials, relying on standard STUN:", error);
+    }
   }
 
   private async handleSignalingMessage(event: MessageEvent) {
@@ -156,7 +144,11 @@ export class WebRTCManager {
     
     try {
       console.log(`[${clientId}] 1. Creating RTCPeerConnection...`);
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const pc = new RTCPeerConnection({ 
+        iceServers: this.iceServers,
+        iceTransportPolicy: 'all',
+        iceCandidatePoolSize: 10
+      });
       this.peerConnections.set(clientId, pc);
 
       pc.onicecandidate = (event) => {
@@ -304,7 +296,11 @@ export class WebRTCManager {
     
     try {
       console.log('[CLIENT] 1. Creating RTCPeerConnection...');
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const pc = new RTCPeerConnection({ 
+        iceServers: this.iceServers,
+        iceTransportPolicy: 'all',
+        iceCandidatePoolSize: 10
+      });
       this.clientPeerConnection = pc;
 
       pc.onicecandidate = (event) => {
@@ -393,7 +389,7 @@ export class WebRTCManager {
     const errors: any[] = [];
     
     try {
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const pc = new RTCPeerConnection({ iceServers: this.iceServers });
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const type = event.candidate.candidate.split(' ')[7];
