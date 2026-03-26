@@ -146,6 +146,19 @@ export class WebRTCManager {
     }
     this.localPlayerId = currentId;
 
+    // SELF-RESURRECTION: Ensure Host is in their own players list
+    const state = useGameStore.getState();
+    const selfInList = state.players.find(p => p.id === this.localPlayerId);
+    if (!selfInList) {
+        console.log(`[IDENTITY] Host missing from roster, re-inserting...`);
+        state.updatePlayers([{
+            id: this.localPlayerId,
+            name: state.playerName || 'Host',
+            isHost: true,
+            connected: true
+        }]);
+    }
+
     await this.connectWebSocket();
 
     console.log(`[SIGNALING] Registering as HOST for room: ${roomCode}`);
@@ -318,6 +331,19 @@ export class WebRTCManager {
         console.log(`[IDENTITY] Generated new Client ID: ${currentId}`);
     }
     this.localPlayerId = currentId;
+
+    // SELF-RESURRECTION: Ensure Client is in their own players list
+    const state = useGameStore.getState();
+    const selfInList = state.players.find(p => p.id === this.localPlayerId);
+    if (!selfInList) {
+        console.log(`[IDENTITY] Client missing from roster, re-inserting...`);
+        state.updatePlayers([{
+            id: this.localPlayerId,
+            name: playerName || 'Client',
+            isHost: false,
+            connected: true
+        }]);
+    }
 
     await this.connectWebSocket();
     useGameStore.getState().setLobbyId(roomCode);
