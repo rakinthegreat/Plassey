@@ -4,7 +4,7 @@ import { GameEngine } from "./GameEngine";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302', 'stun:stun4.l.google.com:19302'] },
     { urls: ['stun:openrelay.metered.ca:80'] },
     { 
       urls: [
@@ -167,6 +167,10 @@ export class WebRTCManager {
         console.log(`[${clientId}] Peer Connection State: ${pc.connectionState}`);
       };
 
+      pc.onicecandidateerror = (event: any) => {
+        console.error(`[${clientId}] ICE ERROR: code ${event.errorCode}, ${event.errorText} (URL: ${event.url})`);
+      };
+
       console.log(`[${clientId}] 2. Creating Data Channel...`);
       const dataChannel = pc.createDataChannel('plassey-channel');
       this.setupDataChannel(dataChannel, clientId);
@@ -297,6 +301,10 @@ export class WebRTCManager {
 
       pc.onconnectionstatechange = () => {
         console.log(`[CLIENT] Peer Connection State: ${pc.connectionState}`);
+      };
+
+      pc.onicecandidateerror = (event: any) => {
+        console.error(`[CLIENT] ICE ERROR: code ${event.errorCode}, ${event.errorText} (URL: ${event.url})`);
       };
 
       pc.ondatachannel = (event) => {
