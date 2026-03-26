@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import type { NetworkPayload } from "../types/game";
 import { useGameStore } from "../store/gameStore";
 import { GameEngine } from "./GameEngine";
@@ -82,6 +83,7 @@ export class WebRTCManager {
 
   private async handleSignalingMessage(event: MessageEvent) {
     const msg = JSON.parse(event.data);
+    console.log(`[SIGNALING] RX: ${msg.type} from ${msg.senderId || msg.sender}`);
 
     if (this.isHost) {
       if (msg.type === 'client_join') {
@@ -126,14 +128,24 @@ export class WebRTCManager {
 
   public async initializeAsHost(roomCode: string) {
     this.isHost = true;
-    this.localPlayerId = useGameStore.getState().localPlayerId || "HOST";
     this.roomCode = roomCode;
+    
+    // Enforce Local Player ID
+    let currentId = useGameStore.getState().localPlayerId;
+    if (!currentId) {
+        currentId = uuidv4();
+        useGameStore.getState().setLocalPlayerId(currentId);
+        console.log(`[IDENTITY] Generated new Host ID: ${currentId}`);
+    }
+    this.localPlayerId = currentId;
 
     await this.connectWebSocket();
 
+    console.log(`[SIGNALING] Registering as HOST for room: ${roomCode}`);
     this.ws!.send(JSON.stringify({
       type: 'host_room',
-      room: roomCode
+      room: roomCode,
+      senderId: this.localPlayerId
     }));
 
     useGameStore.getState().setLobbyId(roomCode);
@@ -275,21 +287,33 @@ export class WebRTCManager {
   public async initializeAsClient(roomCode: string, playerName: string) {
     this.isHost = false;
     this.roomCode = roomCode;
-    this.localPlayerId = useGameStore.getState().localPlayerId; 
+    
+    // Enforce Local Player ID
+    let currentId = useGameStore.getState().localPlayerId;
+    if (!currentId) {
+        currentId = uuidv4();
+        useGameStore.getState().setLocalPlayerId(currentId);
+        console.log(`[IDENTITY] Generated new Client ID: ${currentId}`);
+    }
+    this.localPlayerId = currentId;
 
     await this.connectWebSocket();
     useGameStore.getState().setLobbyId(roomCode);
 
     (this as any)._tempPlayerName = playerName;
 
+    console.log(`[SIGNALING] Joining room ${roomCode} as Client: ${this.localPlayerId}`);
     this.ws!.send(JSON.stringify({
       type: 'join_room',
       room: roomCode,
-      sender: this.localPlayerId
+      roomCode: roomCode,
+      senderId: this.localPlayerId,
+      sender: this.localPlayerId,
+      name: playerName
     }));
 
     // Proactive network test
-    this.testConnectivity(); // Added this line
+    this.testConnectivity();
   }
 
   private async handleOffer(offer: RTCSessionDescriptionInit) {
