@@ -1,0 +1,20 @@
+# MISSION: The "Jackbox" Architecture Pivot (WebSocket Relay)
+You are acting as the Lead Network Architect. We are abandoning WebRTC because of aggressive cellular Symmetric NATs. We are pivoting to a pure WebSocket relay architecture, which is much more stable for a turn-based board game.
+
+## 1. Update the Render Signaling Server
+Open `signaling-server/index.js` (or your server file).
+- We are no longer just passing WebRTC offers. The server must now act as a router for game data.
+- When the server receives a message of `type: 'broadcast_state'`, it must find all clients in that specific `roomCode` and forward the `state` payload to them.
+- When the server receives `type: 'player_action'` (like votes or chat), it routes it to the Host of that room.
+
+## 2. Gut and Rebuild the Network Manager
+Open `src/lib/WebRTCManager.ts` (you can rename it to `NetworkManager.ts` if you want, but update imports if you do).
+- **DELETE** all `RTCPeerConnection`, ICE candidate, and Data Channel logic entirely.
+- The class should now ONLY manage the `WebSocket` connection to the Render server.
+- **Host Logic:** When `broadcastState(state)` is called, simply do: 
+  `ws.send(JSON.stringify({ type: 'broadcast_state', roomCode: this.currentRoom, state }))`
+- **Client Logic:** When `sendActionToHost(action)` is called, simply do:
+  `ws.send(JSON.stringify({ type: 'player_action', roomCode: this.currentRoom, action }))`
+- Ensure the `onmessage` handler correctly parses incoming states and actions and updates the Zustand store exactly like the Data Channels used to.
+
+Stop and wait for my review. Ensure these changes are saved and pushed to Vercel/Render.

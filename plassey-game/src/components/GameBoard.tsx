@@ -503,7 +503,7 @@ export const GameBoard: React.FC = () => {
     <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-160px)] w-full max-w-7xl gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 pb-12 lg:pb-0">
       
       {/* Sidebar: Players & Chat */}
-      <aside className="w-full lg:w-1/3 flex flex-col gap-6 order-2 lg:order-1 h-[60vh] lg:h-full shrink-0">
+      <aside className="w-full lg:w-1/3 flex flex-col gap-6 order-2 lg:order-1 h-[70vh] lg:h-full shrink-0 min-h-0 overflow-hidden">
         
         {/* Compact Player List - Capped at 40% to preserve chat space */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0 overflow-y-auto custom-scrollbar" style={{ maxHeight: '40%' }}>
@@ -550,8 +550,8 @@ export const GameBoard: React.FC = () => {
           </div>
         </div>
 
-        {/* Chat System */}
-        <div className="flex-grow">
+        {/* Chat System - Locked to remaining space */}
+        <div className="flex-grow min-h-0 overflow-hidden">
           <ChatBox />
         </div>
       </aside>
