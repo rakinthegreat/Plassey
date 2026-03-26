@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 export const MainMenu: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [isLanMode, setIsLanMode] = useState(false);
+  const [hostIp, setHostIp] = useState('');
   
   const setStatus = useGameStore((state) => state.setStatus);
   const setLocalPlayerId = useGameStore((state) => state.setLocalPlayerId);
@@ -34,9 +36,22 @@ export const MainMenu: React.FC = () => {
     return code;
   };
 
-  const handleHost = () => {
+  const handleHost = async () => {
     if (!playerName.trim()) return alert('Please enter a name');
     
+    if (isLanMode) {
+      try {
+        const { LocalServerManager } = await import('../lib/LocalServerManager');
+        await LocalServerManager.startServer(8081);
+        webRTCManager.setCustomServerUrl('ws://localhost:8081');
+      } catch (e: any) {
+        alert("Failed to start local server. Are you on a native device? Error: " + e.message);
+        return;
+      }
+    } else {
+      webRTCManager.setCustomServerUrl(null);
+    }
+
     const id = localPlayerId || uuidv4();
     const code = generateRoomCode();
     
@@ -57,7 +72,14 @@ export const MainMenu: React.FC = () => {
   const handleJoin = () => {
     if (!playerName.trim()) return alert('Please enter a name');
     if (roomCodeInput.length !== 4) return alert('Please enter a valid 4-letter room code');
+    if (isLanMode && !hostIp.trim()) return alert('Please enter the Host IP for LAN mode');
     
+    if (isLanMode) {
+      webRTCManager.setCustomServerUrl(`ws://${hostIp.trim()}:8081`);
+    } else {
+      webRTCManager.setCustomServerUrl(null);
+    }
+
     setIsHost(false); // Immediate Reset
     const id = localPlayerId || uuidv4();
     const code = roomCodeInput.toUpperCase();
@@ -88,6 +110,29 @@ export const MainMenu: React.FC = () => {
             onChange={(e) => setPlayerName(e.target.value)}
           />
         </div>
+
+        <div className="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+          <span className="text-slate-300 text-sm font-semibold uppercase tracking-wider">Local Hotspot (LAN)</span>
+          <button 
+            onClick={() => setIsLanMode(!isLanMode)}
+            className={`w-12 h-6 rounded-full transition-colors relative ${isLanMode ? 'bg-amber-500' : 'bg-slate-600'}`}
+          >
+            <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isLanMode ? 'translate-x-7' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        {isLanMode && (
+          <div className="bg-amber-900/20 border border-amber-500/30 p-3 rounded-lg animate-in fade-in zoom-in-95 duration-200">
+             <p className="text-amber-200/70 text-xs mb-2 uppercase tracking-wide font-bold">Joining? Enter Host's IP (e.g. 192.168.43.1):</p>
+             <input
+               type="text"
+               placeholder="Host IP Address"
+               className="w-full bg-slate-900 border border-slate-600 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono"
+               value={hostIp}
+               onChange={(e) => setHostIp(e.target.value)}
+             />
+          </div>
+        )}
 
         <button
           onClick={handleHost}

@@ -1,0 +1,156 @@
+export class LocalServerManager {
+  private static isRunning = false;
+  private static port = 8081;
+  private static clients: Map<string, any> = new Map(); // UUID to connection object
+  private static peerToConn: Map<string, string> = new Map(); // PeerID to Connection UUID
+  private static hostPeerId: string | null = null;
+
+  public static async startServer(port: number = 8081): Promise<void> {
+    if (this.isRunning) return;
+    this.port = port;
+
+    return new Promise((resolve, reject) => {
+      // @ts-ignore - Cordova plugin injected by Capacitor at runtime
+      if (!window.cordova || !window.cordova.plugins || !window.cordova.plugins.wsserver) {
+        console.warn("cordova-plugin-websocket-server not found. You might not be on a native device.");
+        reject(new Error("Native WebSocket Server plugin not available"));
+        return;
+      }
+
+      // Ensure background persistence for Host
+      // @ts-ignore
+      if (window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
+        // @ts-ignore
+        const bgMode = window.cordova.plugins.backgroundMode;
+        bgMode.setDefaults({
+            title: 'Plassey Host',
+            text: 'Maintaining local tactical link.',
+            hidden: false,
+            silent: false
+        });
+        bgMode.enable();
+        bgMode.on('activate', () => bgMode.disableWebViewOptimizations());
+        console.log('[LOCAL SERVER] Background Execution mode ENABLED.');
+      }
+
+      // @ts-ignore
+      const wsserver = window.cordova.plugins.wsserver;
+
+      wsserver.start(this.port, {
+        onFailure: (addr: string, port: number, reason: string) => {
+          console.error('[LOCAL SERVER] Stopped unexpectedly', addr, port, reason);
+          this.isRunning = false;
+        },
+        onMessage: (conn: any, msg: string) => {
+          this.handleMessage(conn, msg);
+        },
+        onOpen: (conn: any) => {
+          console.log(`[LOCAL SERVER] Connection opened: ${conn.uuid}`);
+          this.clients.set(conn.uuid, conn);
+        },
+        onClose: (conn: any, _code: number, _reason: string, _wasClean: boolean) => {
+          console.log(`[LOCAL SERVER] Connection closed: ${conn.uuid}`);
+          this.clients.delete(conn.uuid);
+          // Cleanup mappings
+          for (const [peerId, connId] of this.peerToConn.entries()) {
+            if (connId === conn.uuid) {
+              this.peerToConn.delete(peerId);
+              console.log(`[LOCAL SERVER] Removed dead peer mapping: ${peerId}`);
+            }
+          }
+        }
+      }, (addr: string, port: number) => {
+        console.log(`[LOCAL SERVER] Listening on ${addr}:${port}`);
+        this.isRunning = true;
+        resolve();
+      }, (reason: string) => {
+        console.error(`[LOCAL SERVER] Failed to start: ${reason}`);
+        reject(new Error(reason));
+      });
+    });
+  }
+
+  public static stopServer() {
+    if (!this.isRunning) return;
+    
+    // Disable background persistence
+    // @ts-ignore
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
+      // @ts-ignore
+      window.cordova.plugins.backgroundMode.disable();
+      console.log('[LOCAL SERVER] Background Execution mode DISABLED.');
+    }
+
+    // @ts-ignore
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.wsserver) {
+      // @ts-ignore
+      window.cordova.plugins.wsserver.stop((addr: string, port: number) => {
+        console.log(`[LOCAL SERVER] Stopped on ${addr}:${port}`);
+        this.isRunning = false;
+        this.clients.clear();
+        this.peerToConn.clear();
+        this.hostPeerId = null;
+      });
+    }
+  }
+
+  private static handleMessage(conn: any, messageAsString: string) {
+    let msg;
+    try {
+      msg = JSON.parse(messageAsString);
+    } catch (e) {
+      return;
+    }
+
+    const { type, room, sender, target, roomCode, senderId, targetId } = msg;
+
+    if (type === 'host_room') {
+       const rId = room || roomCode;
+       const hId = senderId || sender;
+       
+       if (this.hostPeerId && this.hostPeerId !== hId) {
+           this.sendToConn(conn, { type: 'error', message: 'Room already hosted.' });
+           return;
+       }
+
+       this.hostPeerId = hId;
+       this.peerToConn.set(hId, conn.uuid);
+       console.log(`[LOCAL SERVER] Host registered room: ${rId} (ID: ${hId})`);
+    } else if (type === 'join_room') {
+       const actualSender = sender || senderId;
+       const actualRoom = room || roomCode;
+       this.peerToConn.set(actualSender, conn.uuid);
+       
+       const hostConnUuid = this.hostPeerId ? this.peerToConn.get(this.hostPeerId) : null;
+       if (hostConnUuid) {
+           this.sendToConnId(hostConnUuid, { type: 'client_join', sender: actualSender });
+           console.log(`[LOCAL SERVER] Client ${actualSender} joined room ${actualRoom}`);
+       }
+    } else if (type === 'offer' || type === 'answer' || type === 'ice_candidate') {
+       // From host to client (isHost here means message is sent by Host, wait, actually we can just rely on IDs)
+       if (this.hostPeerId === (sender || senderId)) {
+           // Routing from Host -> Client
+           const targetConnId = this.peerToConn.get(target || targetId);
+           if (targetConnId) {
+               this.sendToConnId(targetConnId, msg);
+           }
+       } else {
+           // Routing from Client -> Host
+           const hostConnUuid = this.hostPeerId ? this.peerToConn.get(this.hostPeerId) : null;
+           if (hostConnUuid) {
+               this.sendToConnId(hostConnUuid, msg);
+           }
+       }
+    }
+  }
+
+  private static sendToConn(conn: any, payload: any) {
+    // @ts-ignore
+    window.cordova.plugins.wsserver.send({ uuid: conn.uuid }, JSON.stringify(payload));
+  }
+  
+  private static sendToConnId(uuid: string, payload: any) {
+    // @ts-ignore
+    window.cordova.plugins.wsserver.send({ uuid }, JSON.stringify(payload));
+  }
+}

@@ -10,6 +10,7 @@ export class WebRTCManager {
   private isHost: boolean = false;
   private roomCode: string | null = null;
   private localPlayerId: string | null = null;
+  private customWsUrl: string | null = null;
 
   // Host state
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
@@ -39,6 +40,10 @@ export class WebRTCManager {
     };
   }
 
+  public setCustomServerUrl(url: string | null) {
+    this.customWsUrl = url;
+  }
+
   private connectWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -46,7 +51,7 @@ export class WebRTCManager {
         return;
       }
 
-      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8081';
+      const wsUrl = this.customWsUrl || import.meta.env.VITE_WS_URL || 'wss://plassey-server.herokuapp.com'; // Defaulting to cloud if env missing
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = async () => {
