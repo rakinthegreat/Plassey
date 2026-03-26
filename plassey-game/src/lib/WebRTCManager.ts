@@ -54,6 +54,7 @@ export class WebRTCManager {
         // Pre-fetch TURN credentials
         await this.fetchTurnCredentials();
         useGameStore.getState().setNetworkStatus('signaling');
+        console.log(`[IDENTITY] P2P State: ${this.isHost ? 'COMMANDER (Host)' : 'SUBORDINATE (Client)'}`);
         resolve();
       };
 
@@ -84,6 +85,12 @@ export class WebRTCManager {
   private async handleSignalingMessage(event: MessageEvent) {
     const msg = JSON.parse(event.data);
     console.log(`[SIGNALING] RX: ${msg.type} from ${msg.senderId || msg.sender}`);
+
+    if (msg.type === 'error') {
+      console.error(`[SIGNALING ERROR] ${msg.message}`);
+      alert(`Tactical Error: ${msg.message}`);
+      return;
+    }
 
     if (this.isHost) {
       if (msg.type === 'client_join') {

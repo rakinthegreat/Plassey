@@ -47,6 +47,7 @@ export const MainMenu: React.FC = () => {
     if (!playerName.trim()) return alert('Please enter a name');
     if (roomCodeInput.length !== 4) return alert('Please enter a valid 4-letter room code');
     
+    setIsHost(false); // Immediate Reset
     const id = uuidv4();
     const code = roomCodeInput.toUpperCase();
     

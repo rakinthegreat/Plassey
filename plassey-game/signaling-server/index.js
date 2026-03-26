@@ -20,10 +20,23 @@ wss.on('connection', (ws) => {
     const { type, room, sender, target, roomCode, senderId, targetId } = msg;
 
     if (type === 'host_room') {
-      hosts.set(room || roomCode, ws);
+      const rId = room || roomCode;
+      const hId = senderId || sender;
+      
+      const existing = hosts.get(rId);
+      if (existing && existing.hostId && hId && existing.hostId !== hId) {
+        console.log(`[REJECT] Attempt to hijack room ${rId} by ${hId} (Official Host: ${existing.hostId})`);
+        ws.send(JSON.stringify({ 
+          type: 'error', 
+          message: 'This tactical front already has a commanding officer. Please join as a subordinate.' 
+        }));
+        return;
+      }
+
+      hosts.set(rId, { ws, hostId: hId });
       isHost = true;
-      roomId = room || roomCode;
-      console.log(`Host registered room: ${roomId}`);
+      roomId = rId;
+      console.log(`Host registered room: ${roomId} (ID: ${hId})`);
     } 
     else if (type === 'join_room') {
       const actualSender = sender || senderId;
@@ -31,9 +44,10 @@ wss.on('connection', (ws) => {
       clients.set(actualSender, ws);
       clientId = actualSender;
       roomId = actualRoom;
-      const hostWs = hosts.get(actualRoom);
-      if (hostWs && hostWs.readyState === WebSocket.OPEN) {
-        hostWs.send(JSON.stringify({ type: 'client_join', sender: actualSender }));
+      
+      const hostEntry = hosts.get(actualRoom);
+      if (hostEntry && hostEntry.ws.readyState === WebSocket.OPEN) {
+        hostEntry.ws.send(JSON.stringify({ type: 'client_join', sender: actualSender }));
         console.log(`Client ${actualSender} joined room ${actualRoom}`);
       }
     } 
@@ -47,9 +61,9 @@ wss.on('connection', (ws) => {
         }
       } else {
         // Client routing to host
-        const hostWs = hosts.get(room || roomCode || roomId);
-        if (hostWs && hostWs.readyState === WebSocket.OPEN) {
-          hostWs.send(JSON.stringify(msg));
+        const hostEntry = hosts.get(room || roomCode || roomId);
+        if (hostEntry && hostEntry.ws.readyState === WebSocket.OPEN) {
+          hostEntry.ws.send(JSON.stringify(msg));
         }
       }
     }
@@ -57,8 +71,12 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     if (isHost && roomId) {
-      hosts.delete(roomId);
-      console.log(`Host disconnected from room: ${roomId}`);
+      const existing = hosts.get(roomId);
+      // Only delete if THIS socket is the one registered
+      if (existing && existing.ws === ws) {
+        hosts.delete(roomId);
+        console.log(`Host disconnected from room: ${roomId}`);
+      }
     } else if (clientId) {
       clients.delete(clientId);
       console.log(`Client disconnected: ${clientId}`);
