@@ -68,7 +68,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'plassey-game-session',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => sessionStorage),
       // Only persist critical info for rejoining
       partialize: (state) => ({
         localPlayerId: state.localPlayerId,
