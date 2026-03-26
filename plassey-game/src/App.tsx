@@ -90,12 +90,28 @@ function App() {
                         </p>
                     </div>
                     
-                    <button 
-                        onClick={handleLeaveGame}
-                        className="text-[10px] text-slate-500 hover:text-amber-500 underline uppercase font-black tracking-widest transition-all"
-                    >
-                        Stuck? Force Reset Session
-                    </button>
+                    <div className="flex flex-col gap-4 items-center">
+                        <button 
+                            onClick={() => {
+                                console.log("[RESCUE] Manually triggering link refresh...");
+                                if (isHost) {
+                                    webRTCManager.initializeAsHost(lobbyId!);
+                                } else {
+                                    webRTCManager.initializeAsClient(lobbyId!, playerName!);
+                                }
+                            }}
+                            className="px-6 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                        >
+                            🔄 Refresh Tactical Link
+                        </button>
+                        
+                        <button 
+                            onClick={handleLeaveGame}
+                            className="text-[10px] text-slate-600 hover:text-rose-500 underline uppercase font-black tracking-widest transition-all"
+                        >
+                            Abandon Campaign
+                        </button>
+                    </div>
                 </div>
             </div>
         )}

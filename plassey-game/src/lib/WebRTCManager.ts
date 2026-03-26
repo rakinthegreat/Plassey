@@ -155,8 +155,23 @@ export class WebRTCManager {
   private async handleClientJoin(clientId: string) {
     console.log(`Incoming connection request from client: ${clientId}`);
     
+    // Cleanup existing connection for this client if any
+    const existingPc = this.peerConnections.get(clientId);
+    if (existingPc) {
+      console.log(`[WEBRTC] Handshake Resetting for ${clientId}: Incinerating stale peer connection.`);
+      try {
+        // Stop all tracks and close the connection
+        existingPc.getSenders().forEach(sender => existingPc.removeTrack(sender));
+        existingPc.close();
+      } catch (e) {
+        console.warn(`[WEBRTC] Error closing stale connection for ${clientId}:`, e);
+      }
+      this.peerConnections.delete(clientId);
+      this.dataChannels.delete(clientId);
+    }
+    
     try {
-      console.log(`[${clientId}] 1. Creating RTCPeerConnection...`);
+      console.log(`[${clientId}] 1. Creating new RTCPeerConnection...`);
       const pc = new RTCPeerConnection({ 
         iceServers: this.iceServers,
         iceTransportPolicy: 'all',
