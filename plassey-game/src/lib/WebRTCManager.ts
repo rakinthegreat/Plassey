@@ -125,7 +125,7 @@ export class WebRTCManager {
 
   public async initializeAsHost(roomCode: string) {
     this.isHost = true;
-    this.localPlayerId = "HOST";
+    this.localPlayerId = useGameStore.getState().localPlayerId || "HOST";
     this.roomCode = roomCode;
 
     await this.connectWebSocket();
@@ -168,7 +168,7 @@ export class WebRTCManager {
             this.ws.send(JSON.stringify({
               type: 'ice_candidate',
               roomCode: this.roomCode,
-              senderId: "HOST",
+              senderId: this.localPlayerId,
               targetId: clientId,
               candidate: event.candidate
             }));
@@ -203,8 +203,8 @@ export class WebRTCManager {
         type: 'offer',
         room: this.roomCode,
         roomCode: this.roomCode,
-        sender: "HOST",
-        senderId: "HOST",
+        sender: this.localPlayerId,
+        senderId: this.localPlayerId,
         target: clientId,
         targetId: clientId,
         payload: offer,
@@ -449,7 +449,7 @@ export class WebRTCManager {
 
   public broadcastState(state: any) {
     if (!this.isHost) return;
-    const message = JSON.stringify({ type: "STATE_UPDATE", senderId: "HOST", data: state });
+    const message = JSON.stringify({ type: "STATE_UPDATE", senderId: this.localPlayerId, data: state });
     this.dataChannels.forEach((channel) => {
       if (channel.readyState === 'open') {
         channel.send(message);
@@ -668,8 +668,9 @@ export class WebRTCManager {
         let senderDisplayName = (payload as any).senderName || "Unknown";
         
         if (senderDisplayName === "Unknown") {
-            if (payload.senderId === "HOST") {
-                senderDisplayName = store.players.find(pl => pl.isHost)?.name || "High Command";
+            const hostInStore = store.players.find(pl => pl.isHost);
+            if (payload.senderId === hostInStore?.id || payload.senderId === "HOST") {
+                senderDisplayName = hostInStore?.name || "High Command";
             } else if (p) {
                 senderDisplayName = p.name;
             }
