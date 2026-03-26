@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
-  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession } = useGameStore();
+  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus } = useGameStore();
   const rejoinAttempted = useRef(false);
 
   useEffect(() => {
@@ -72,6 +72,19 @@ function App() {
           {status === 'lobby' && <Lobby />}
           {status === 'in_progress' && <GameBoard />}
         </main>
+
+        {/* Reconnecting Overlay */}
+        {status !== 'menu' && networkStatus === 'none' && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-500">
+                <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6 shadow-[0_0_15px_rgba(245,158,11,0.2)]"></div>
+                    <div className="text-center">
+                        <h2 className="text-white text-xl font-black uppercase tracking-[0.3em] mb-2">Restoring Tactical Link</h2>
+                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest animate-pulse">Establishing Peer Connection...</p>
+                    </div>
+                </div>
+            </div>
+        )}
 
       </div>
 
