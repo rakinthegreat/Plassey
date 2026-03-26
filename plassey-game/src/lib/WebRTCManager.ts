@@ -52,6 +52,7 @@ export class WebRTCManager {
         console.log('Connected to signaling server');
         // Pre-fetch TURN credentials
         await this.fetchTurnCredentials();
+        useGameStore.getState().setNetworkStatus('signaling');
         resolve();
       };
 

@@ -16,8 +16,8 @@ interface GameStore extends GameState {
   setLeaderId: (id: string | null) => void;
   setCurrentRound: (round: number) => void;
   setProposedTeam: (team: string[]) => void;
-  networkStatus: 'none' | 'stun' | 'turn';
-  setNetworkStatus: (status: 'none' | 'stun' | 'turn') => void;
+  networkStatus: 'none' | 'signaling' | 'stun' | 'turn';
+  setNetworkStatus: (status: 'none' | 'signaling' | 'stun' | 'turn') => void;
   // Allows setting the full master state
   setMasterState: (state: Partial<GameState>) => void;
   resetSession: () => void;

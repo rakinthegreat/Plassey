@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
-  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus } = useGameStore();
+  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase } = useGameStore();
   const rejoinAttempted = useRef(false);
 
   useEffect(() => {
@@ -74,14 +74,28 @@ function App() {
         </main>
 
         {/* Reconnecting Overlay */}
-        {status !== 'menu' && networkStatus === 'none' && (
+        {status !== 'menu' && (
+            // Phase Lobby: only block if NO connection
+            // Phase Game: block if NO P2P connection (none or signaling)
+            (phase === 'lobby' && networkStatus === 'none') || 
+            (phase !== 'lobby' && (networkStatus === 'none' || networkStatus === 'signaling'))
+        ) && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-500">
                 <div className="flex flex-col items-center">
                     <div className="w-16 h-16 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6 shadow-[0_0_15px_rgba(245,158,11,0.2)]"></div>
-                    <div className="text-center">
+                    <div className="text-center mb-8">
                         <h2 className="text-white text-xl font-black uppercase tracking-[0.3em] mb-2">Restoring Tactical Link</h2>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest animate-pulse">Establishing Peer Connection...</p>
+                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest animate-pulse">
+                            {networkStatus === 'none' ? 'Connecting to Room...' : 'Establishing Peer Tunnel...'}
+                        </p>
                     </div>
+                    
+                    <button 
+                        onClick={handleLeaveGame}
+                        className="text-[10px] text-slate-500 hover:text-amber-500 underline uppercase font-black tracking-widest transition-all"
+                    >
+                        Stuck? Force Reset Session
+                    </button>
                 </div>
             </div>
         )}
