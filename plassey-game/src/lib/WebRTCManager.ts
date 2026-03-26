@@ -4,15 +4,12 @@ import { GameEngine } from "./GameEngine";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302', 'stun:stun4.l.google.com:19302'] },
-    { urls: ['stun:openrelay.metered.ca:80'] },
+    { urls: ['stun:stun.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
     { 
       urls: [
-        'turn:openrelay.metered.ca:80?transport=udp',
-        'turn:openrelay.metered.ca:80?transport=tcp',
-        'turn:openrelay.metered.ca:443?transport=udp',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-        'turns:openrelay.metered.ca:443?transport=tcp'
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turns:openrelay.metered.ca:443'
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
@@ -146,7 +143,16 @@ export class WebRTCManager {
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const type = event.candidate.candidate.split(' ')[7];
-          console.log(`[${clientId}] Local ICE Candidate: ${type} (${event.candidate.candidate})`);
+          console.log(`[${clientId}] Local ICE Candidate: ${type}`);
+          
+          // Update Network Status in Store
+          const currentStatus = useGameStore.getState().networkStatus;
+          if (type === 'relay') {
+            useGameStore.getState().setNetworkStatus('turn');
+          } else if (type === 'srflx' && currentStatus !== 'turn') {
+            useGameStore.getState().setNetworkStatus('stun');
+          }
+
           if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({
               type: 'ice_candidate',
@@ -282,7 +288,16 @@ export class WebRTCManager {
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const type = event.candidate.candidate.split(' ')[7];
-          console.log(`[CLIENT] Local ICE Candidate: ${type} (${event.candidate.candidate})`);
+          console.log(`[CLIENT] Local ICE Candidate: ${type}`);
+          
+          // Update Network Status in Store
+          const currentStatus = useGameStore.getState().networkStatus;
+          if (type === 'relay') {
+            useGameStore.getState().setNetworkStatus('turn');
+          } else if (type === 'srflx' && currentStatus !== 'turn') {
+            useGameStore.getState().setNetworkStatus('stun');
+          }
+
           if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({
               type: 'ice_candidate',

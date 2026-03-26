@@ -11,6 +11,8 @@ interface GameStore extends GameState {
   setLeaderId: (id: string | null) => void;
   setCurrentRound: (round: number) => void;
   setProposedTeam: (team: string[]) => void;
+  networkStatus: 'none' | 'stun' | 'turn';
+  setNetworkStatus: (status: 'none' | 'stun' | 'turn') => void;
   // Allows setting the full master state
   setMasterState: (state: Partial<GameState>) => void;
 }
@@ -31,7 +33,9 @@ export const useGameStore = create<GameStore>((set) => ({
   pendingVoters: [],
   lastTeamVoteResult: null,
   lastMissionVoteResult: null,
+  networkStatus: 'none',
 
+  setNetworkStatus: (status) => set({ networkStatus: status }),
   setLobbyId: (id: string) => set({ lobbyId: id }),
   setStatus: (status: 'menu' | 'lobby' | 'in_progress') => set({ status }),
   setPhase: (phase: GameState['phase']) => set({ phase }),

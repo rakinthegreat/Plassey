@@ -4,7 +4,7 @@ import { webRTCManager } from '../lib/WebRTCManager';
 import { GameEngine } from '../lib/GameEngine';
 
 export const Lobby: React.FC = () => {
-  const { lobbyId, players, localPlayerId, setMasterState } = useGameStore();
+  const { lobbyId, players, localPlayerId, setMasterState, networkStatus } = useGameStore();
   
   const localPlayer = players.find(p => p.id === localPlayerId);
   const isHost = localPlayer?.isHost || false;
@@ -129,10 +129,23 @@ export const Lobby: React.FC = () => {
         </div>
       </div>
       
-      <div className="p-4 bg-slate-900/90 border-t border-slate-800 flex items-center justify-center gap-6">
+      <div className="p-4 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between px-8">
         <div className="flex items-center gap-2 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
             <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span>
             Peer Signaling Active
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Network:</span>
+          <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${
+            networkStatus === 'turn' 
+              ? 'bg-emerald-500/20 text-emerald-500' 
+              : networkStatus === 'stun'
+                ? 'bg-amber-500/20 text-amber-500'
+                : 'bg-rose-500/20 text-rose-500'
+          }`}>
+            {networkStatus === 'turn' ? 'Open (TURN)' : networkStatus === 'stun' ? 'Limited (STUN)' : 'Restricted'}
+          </div>
         </div>
       </div>
     </div>
