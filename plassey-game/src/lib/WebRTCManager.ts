@@ -253,45 +253,65 @@ export class WebRTCManager {
   }
 
   private async handleOffer(offer: RTCSessionDescriptionInit) {
-    console.log('Received offer from Host, creating answer...');
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-    this.clientPeerConnection = pc;
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({
-          type: 'ice_candidate',
-          roomCode: this.roomCode,
-          senderId: this.localPlayerId,
-          targetId: "HOST",
-          candidate: event.candidate
-        }));
-      }
-    };
-
-    pc.ondatachannel = (event) => {
-      this.setupDataChannel(event.channel, "HOST");
-      const playerName = (this as any)._tempPlayerName || 'A commander';
-      this.sendActionToHost({
-        type: "chat",
-        senderId: this.localPlayerId || "",
-        data: { text: `SYSTEM: ${playerName} has arrived.` }
-      });
-    };
-
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    await this.drainPendingCandidates("HOST", pc);
+    console.log('[CLIENT] 0. Received offer from Host, starting handshake...');
     
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+    try {
+      console.log('[CLIENT] 1. Creating RTCPeerConnection...');
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      this.clientPeerConnection = pc;
 
-    this.ws!.send(JSON.stringify({
-      type: 'answer',
-      roomCode: this.roomCode,
-      senderId: this.localPlayerId,
-      targetId: "HOST",
-      payload: answer
-    }));
+      pc.onicecandidate = (event) => {
+        if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            type: 'ice_candidate',
+            roomCode: this.roomCode,
+            senderId: this.localPlayerId,
+            targetId: "HOST",
+            candidate: event.candidate
+          }));
+        }
+      };
+
+      pc.ondatachannel = (event) => {
+        console.log('[CLIENT] Data Channel received from Host!');
+        this.setupDataChannel(event.channel, "HOST");
+        const playerName = (this as any)._tempPlayerName || 'A commander';
+        this.sendActionToHost({
+          type: "chat",
+          senderId: this.localPlayerId || "",
+          data: { text: `SYSTEM: ${playerName} has arrived.` }
+        });
+      };
+
+      console.log('[CLIENT] 2. Setting Remote Description (Offer)...');
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      
+      console.log('[CLIENT] 3. Draining pending candidates...');
+      await this.drainPendingCandidates("HOST", pc);
+      
+      console.log('[CLIENT] 4. Generating Answer...');
+      const answer = await pc.createAnswer();
+      
+      console.log('[CLIENT] 5. Setting Local Description (Answer)...');
+      await pc.setLocalDescription(answer);
+
+      console.log('[CLIENT] 6. Sending Answer to Signaling Server...');
+      this.ws!.send(JSON.stringify({
+        type: 'answer',
+        room: this.roomCode,
+        roomCode: this.roomCode,
+        sender: this.localPlayerId,
+        senderId: this.localPlayerId,
+        target: "HOST",
+        targetId: "HOST",
+        payload: answer,
+        answer: answer
+      }));
+      console.log('[CLIENT] Handshake sequence (Answer) completed successfully.');
+
+    } catch (error) {
+      console.error('[CLIENT CRITICAL ERROR] Failed to process offer/generate answer:', error);
+    }
   }
 
   private async drainPendingCandidates(peerId: string, pc: RTCPeerConnection) {
