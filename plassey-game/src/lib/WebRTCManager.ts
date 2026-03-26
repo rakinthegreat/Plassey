@@ -4,7 +4,12 @@ import { GameEngine } from "./GameEngine";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
+    { urls: [
+      'stun:stun.l.google.com:19302', 
+      'stun:global.stun.twilio.com:3478',
+      'stun:74.125.143.127:19302', // Google IP Fallback
+      'stun:3.235.111.105:3478'    // Twilio IP Fallback
+    ] },
     { 
       urls: [
         'turn:openrelay.metered.ca:80',
@@ -275,6 +280,9 @@ export class WebRTCManager {
       room: roomCode,
       sender: this.localPlayerId
     }));
+
+    // Proactive network test
+    this.testConnectivity(); // Added this line
   }
 
   private async handleOffer(offer: RTCSessionDescriptionInit) {
@@ -361,6 +369,40 @@ export class WebRTCManager {
 
     } catch (error) {
       console.error('[CLIENT CRITICAL ERROR] Failed to process offer/generate answer:', error);
+    }
+  }
+
+  private async testConnectivity() {
+    console.log('[NETWORK TEST] Starting proactive connectivity check...');
+    try {
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          const type = event.candidate.candidate.split(' ')[7];
+          console.log(`[NETWORK TEST] Gathered candidate: ${type}`);
+          
+          const currentStatus = useGameStore.getState().networkStatus;
+          if (type === 'relay') {
+            useGameStore.getState().setNetworkStatus('turn');
+          } else if (type === 'srflx' && currentStatus !== 'turn') {
+            useGameStore.getState().setNetworkStatus('stun');
+          }
+        }
+      };
+
+      pc.onicecandidateerror = (event: any) => {
+        console.warn(`[NETWORK TEST ERROR] ${event.errorCode}: ${event.errorText} (${event.url})`);
+      };
+
+      // Force gathering by creating a dummy channel and offer
+      pc.createDataChannel('test');
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // Give it a few seconds then cleanup
+      setTimeout(() => pc.close(), 5000);
+    } catch (e) {
+      console.error('[NETWORK TEST] Failed to initialize:', e);
     }
   }
 
