@@ -135,34 +135,50 @@ export class WebRTCManager {
   private async handleClientJoin(clientId: string) {
     console.log(`Incoming connection request from client: ${clientId}`);
     
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-    this.peerConnections.set(clientId, pc);
+    try {
+      console.log(`[${clientId}] 1. Creating RTCPeerConnection...`);
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      this.peerConnections.set(clientId, pc);
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({
-          type: 'ice_candidate',
-          roomCode: this.roomCode,
-          senderId: "HOST",
-          targetId: clientId,
-          candidate: event.candidate
-        }));
-      }
-    };
+      pc.onicecandidate = (event) => {
+        if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            type: 'ice_candidate',
+            roomCode: this.roomCode,
+            senderId: "HOST",
+            targetId: clientId,
+            candidate: event.candidate
+          }));
+        }
+      };
 
-    const dataChannel = pc.createDataChannel('plassey-channel');
-    this.setupDataChannel(dataChannel, clientId);
+      console.log(`[${clientId}] 2. Creating Data Channel...`);
+      const dataChannel = pc.createDataChannel('plassey-channel');
+      this.setupDataChannel(dataChannel, clientId);
 
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+      console.log(`[${clientId}] 3. Generating Offer...`);
+      const offer = await pc.createOffer();
+      
+      console.log(`[${clientId}] 4. Setting Local Description...`);
+      await pc.setLocalDescription(offer);
 
-    this.ws!.send(JSON.stringify({
-      type: 'offer',
-      room: this.roomCode,
-      sender: "HOST",
-      target: clientId,
-      payload: offer
-    }));
+      console.log(`[${clientId}] 5. Sending Offer to Signaling Server...`);
+      this.ws!.send(JSON.stringify({
+        type: 'offer',
+        room: this.roomCode,
+        roomCode: this.roomCode,
+        sender: "HOST",
+        senderId: "HOST",
+        target: clientId,
+        targetId: clientId,
+        payload: offer,
+        offer: offer
+      }));
+      console.log(`[${clientId}] Handshake sequence completed successfully.`);
+
+    } catch (error) {
+      console.error(`[CRITICAL ERROR] Failed to initialize connection for ${clientId}:`, error);
+    }
   }
 
   private setupDataChannel(channel: RTCDataChannel, peerId: string) {
