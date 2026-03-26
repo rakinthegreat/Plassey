@@ -13,7 +13,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.0"),
         .package(name: "CordovaPluginBackgroundMode", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginBackgroundMode"),
-        .package(name: "CordovaPluginWebsocketServer", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginWebsocketServer")
+        .package(name: "CordovaPluginWebsocketServer", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginWebsocketServer"),
+        .package(name: "CordovaPluginZeroconf", path: "../../capacitor-cordova-ios-plugins/sources/CordovaPluginZeroconf")
     ],
     targets: [
         .target(
@@ -22,7 +23,8 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "CordovaPluginBackgroundMode", package: "CordovaPluginBackgroundMode"),
-                .product(name: "CordovaPluginWebsocketServer", package: "CordovaPluginWebsocketServer")
+                .product(name: "CordovaPluginWebsocketServer", package: "CordovaPluginWebsocketServer"),
+                .product(name: "CordovaPluginZeroconf", package: "CordovaPluginZeroconf")
             ]
         )
     ]

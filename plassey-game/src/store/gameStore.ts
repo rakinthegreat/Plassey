@@ -10,6 +10,9 @@ interface GameStore extends GameState {
   setStatus: (status: 'menu' | 'lobby' | 'in_progress') => void;
   setPhase: (phase: GameState['phase']) => void;
   updatePlayers: (players: Player[]) => void;
+  isLanMode: boolean;
+  lanHostIp: string;
+  setLanMode: (isLan: boolean, hostIp: string) => void;
   setLocalPlayerId: (id: string) => void;
   setPlayerName: (name: string) => void;
   setIsHost: (isHost: boolean) => void;
@@ -46,6 +49,8 @@ const initialState = {
   lastTeamVoteResult: null,
   lastMissionVoteResult: null,
   networkStatus: 'none' as const,
+  isLanMode: false,
+  lanHostIp: '',
   isMuted: false,
   volume: 0.5,
 };
@@ -60,6 +65,7 @@ export const useGameStore = create<GameStore>()(
       setStatus: (status) => set({ status }),
       setPhase: (phase: GameState['phase']) => set({ phase }),
       updatePlayers: (players: Player[]) => set({ players }),
+      setLanMode: (isLanMode, lanHostIp) => set({ isLanMode, lanHostIp }),
       setLocalPlayerId: (id: string) => set({ localPlayerId: id }),
       setPlayerName: (playerName: string) => set({ playerName }),
       setIsHost: (isHost: boolean) => set({ isHost }),
@@ -100,6 +106,8 @@ export const useGameStore = create<GameStore>()(
         missionVotes: state.missionVotes,
         winner: state.winner,
         winReason: state.winReason,
+        isLanMode: state.isLanMode,
+        lanHostIp: state.lanHostIp,
         isMuted: state.isMuted,
         volume: state.volume,
       }),

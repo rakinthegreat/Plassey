@@ -16,6 +16,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "cordova-plugin-background-mode": "^0.7.3",
     "cordova-plugin-websocket-server": "^1.6.0",
+    "cordova-plugin-zeroconf": "^1.4.2",
     "peerjs": "^1.5.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

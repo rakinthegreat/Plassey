@@ -9,7 +9,7 @@ import { AudioToggle } from './components/AudioToggle';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
-  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase } = useGameStore();
+  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode } = useGameStore();
   const rejoinAttempted = useRef(false);
 
   useEffect(() => {
@@ -79,43 +79,41 @@ function App() {
           {renderContent()}
         </main>
 
-        {/* Reconnecting Overlay */}
-        {status !== 'menu' && (
-            // Phase Lobby: only block if NO connection
-            // Phase Game: block if NO P2P connection (none or signaling)
-            (phase === 'lobby' && networkStatus === 'none') || 
+        {/* Tactical Link Alert (Non-blocking) - Cloud Mode Only */}
+        {status !== 'menu' && !isLanMode && (
+            (phase === 'lobby' && (networkStatus === 'none' || networkStatus === 'signaling')) || 
             (phase !== 'lobby' && (networkStatus === 'none' || networkStatus === 'signaling'))
         ) && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-500">
-                <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6 shadow-[0_0_15px_rgba(245,158,11,0.2)]"></div>
-                    <div className="text-center mb-8">
-                        <h2 className="text-white text-xl font-black uppercase tracking-[0.3em] mb-2">Restoring Tactical Link</h2>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest animate-pulse">
-                            {networkStatus === 'none' ? 'Connecting to Room...' : 'Establishing Peer Tunnel...'}
-                        </p>
+            <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-sm animate-in slide-in-from-top duration-500">
+                <div className="bg-amber-600/90 backdrop-blur-md border border-amber-400/50 rounded-lg p-3 shadow-2xl flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                        <div>
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-white leading-none">Tactical Link Sync</h3>
+                            <p className="text-[8px] font-bold uppercase tracking-tighter text-amber-100/70 mt-0.5">
+                                {networkStatus === 'none' ? 'Restoring Signaling...' : 'Establishing Peer Tunnel...'}
+                            </p>
+                        </div>
                     </div>
                     
-                    <div className="flex flex-col gap-4 items-center">
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={handleLeaveGame}
+                            className="text-[8px] text-amber-200/50 hover:text-rose-400 underline uppercase font-black tracking-widest transition-all px-2"
+                        >
+                            Abandon
+                        </button>
                         <button 
                             onClick={() => {
-                                console.log("[RESCUE] Manually triggering link refresh...");
                                 if (isHost) {
                                     webRTCManager.initializeAsHost(lobbyId!);
                                 } else {
                                     webRTCManager.initializeAsClient(lobbyId!, playerName!);
                                 }
                             }}
-                            className="px-6 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-600/50 text-amber-500 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                            className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-[8px] font-black uppercase tracking-widest text-white transition-all border border-white/20"
                         >
-                            🔄 Refresh Tactical Link
-                        </button>
-                        
-                        <button 
-                            onClick={handleLeaveGame}
-                            className="text-[10px] text-slate-600 hover:text-rose-500 underline uppercase font-black tracking-widest transition-all"
-                        >
-                            Abandon Campaign
+                            Sync
                         </button>
                     </div>
                 </div>

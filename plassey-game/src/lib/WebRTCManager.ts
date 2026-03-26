@@ -43,6 +43,10 @@ export class WebRTCManager {
   public setCustomServerUrl(url: string | null) {
     this.customWsUrl = url;
   }
+  
+  public getSignalingUrl(): string {
+     return this.customWsUrl || import.meta.env.VITE_WS_URL || 'wss://plassey-server.herokuapp.com';
+  }
 
   private connectWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -56,11 +60,14 @@ export class WebRTCManager {
 
       this.ws.onopen = async () => {
         console.log('Connected to signaling server');
-        // Pre-fetch TURN credentials
-        await this.fetchTurnCredentials();
-        useGameStore.getState().setNetworkStatus('signaling');
-        console.log(`[IDENTITY] P2P State: ${this.isHost ? 'COMMANDER (Host)' : 'SUBORDINATE (Client)'}`);
-        resolve();
+        // Pre-fetch TURN credentials in background - DO NOT AWAIT on LAN
+        this.fetchTurnCredentials();
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            useGameStore.getState().setNetworkStatus('signaling');
+            console.log(`[IDENTITY] P2P State: ${this.isHost ? 'COMMANDER (Host)' : 'SUBORDINATE (Client)'}`);
+            resolve();
+        }
       };
 
       this.ws.onerror = (err) => {
@@ -158,6 +165,13 @@ export class WebRTCManager {
   public async initializeAsHost(roomCode: string) {
     this.isHost = true;
     this.roomCode = roomCode;
+    
+    // PERSISTENCE: If we are re-joining a LAN session, ensure we use the local loopback
+    const store = useGameStore.getState();
+    if (store.isLanMode) {
+        console.log(`[LAN] Local Host Re-initialization: Binding to 127.0.0.1`);
+        this.setCustomServerUrl('ws://127.0.0.1:8081');
+    }
     
     // Enforce Local Player ID
     let currentId = useGameStore.getState().localPlayerId;
@@ -344,6 +358,13 @@ export class WebRTCManager {
   public async initializeAsClient(roomCode: string, playerName: string) {
     this.isHost = false;
     this.roomCode = roomCode;
+    
+    // PERSISTENCE: If we are re-joining a LAN session, ensure we use the persisted Host IP
+    const store = useGameStore.getState();
+    if (store.isLanMode && store.lanHostIp) {
+        console.log(`[LAN] Local Client Re-initialization: Binding to ${store.lanHostIp}`);
+        this.setCustomServerUrl(`ws://${store.lanHostIp}:8081`);
+    }
     
     // Enforce Local Player ID
     let currentId = useGameStore.getState().localPlayerId;

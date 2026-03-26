@@ -4,9 +4,10 @@ export class LocalServerManager {
   private static clients: Map<string, any> = new Map(); // UUID to connection object
   private static peerToConn: Map<string, string> = new Map(); // PeerID to Connection UUID
   private static hostPeerId: string | null = null;
+  private static zeroconfServiceName: string | null = null;
 
-  public static async startServer(port: number = 8081): Promise<void> {
-    if (this.isRunning) return;
+  public static async startServer(port: number = 8081, roomCode?: string): Promise<string> {
+    if (this.isRunning) return '0.0.0.0';
     this.port = port;
 
     return new Promise((resolve, reject) => {
@@ -31,6 +32,20 @@ export class LocalServerManager {
         bgMode.enable();
         bgMode.on('activate', () => bgMode.disableWebViewOptimizations());
         console.log('[LOCAL SERVER] Background Execution mode ENABLED.');
+      }
+
+      // Register Zeroconf (mDNS) so clients on LAN can discover the server automatically
+      // @ts-ignore
+      if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf) {
+        // @ts-ignore
+        const zc = window.cordova.plugins.zeroconf;
+        const serviceName = "PlasseyHost_" + (roomCode || Math.random().toString(36).substring(2, 6));
+        zc.register('_plassey._tcp.', 'local.', serviceName, this.port, {
+           'roomId': roomCode || 'HOST'
+        }, () => console.log('[LOCAL SERVER] Zeroconf (mDNS) registered:', serviceName),
+        (err: any) => console.error('[LOCAL SERVER] Zeroconf registration failed:', err));
+        
+        this.zeroconfServiceName = serviceName;
       }
 
       // @ts-ignore
@@ -62,7 +77,7 @@ export class LocalServerManager {
       }, (addr: string, port: number) => {
         console.log(`[LOCAL SERVER] Listening on ${addr}:${port}`);
         this.isRunning = true;
-        resolve();
+        resolve(addr);
       }, (reason: string) => {
         console.error(`[LOCAL SERVER] Failed to start: ${reason}`);
         reject(new Error(reason));
@@ -79,6 +94,15 @@ export class LocalServerManager {
       // @ts-ignore
       window.cordova.plugins.backgroundMode.disable();
       console.log('[LOCAL SERVER] Background Execution mode DISABLED.');
+    }
+
+    // Unregister Zeroconf
+    // @ts-ignore
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf && this.zeroconfServiceName) {
+      // @ts-ignore
+      window.cordova.plugins.zeroconf.unregister('_plassey._tcp.', 'local.', this.zeroconfServiceName);
+      this.zeroconfServiceName = null;
+      console.log('[LOCAL SERVER] Zeroconf unregistered.');
     }
 
     // @ts-ignore

@@ -33,6 +33,13 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Fix for Android 14+ (API 34+) Foreground Service Type Requirement -->
+        <service 
+            android:name="de.appplant.cordova.plugin.background.ForegroundService" 
+            android:foregroundServiceType="dataSync"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
