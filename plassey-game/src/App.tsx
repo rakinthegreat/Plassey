@@ -56,12 +56,12 @@ function App() {
         )}
 
         {status !== 'menu' && (
-            <div className="fixed top-6 right-6 z-40">
+            <div className="fixed top-3 right-4 z-40 md:top-6 md:right-6">
                 <button
                     onClick={handleLeaveGame}
-                    className="p-2 bg-slate-900/50 hover:bg-rose-900/40 border border-slate-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-rose-400 transition-all flex items-center gap-2"
+                    className="p-1.5 md:p-2 bg-slate-900/60 hover:bg-rose-900/40 border border-slate-800 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-rose-400 transition-all flex items-center gap-2 backdrop-blur-sm shadow-xl"
                 >
-                    <span>🚪</span> Leave Campaign
+                    <span>🚪</span> <span className="hidden sm:inline">Leave Campaign</span><span className="sm:hidden">Exit</span>
                 </button>
             </div>
         )}

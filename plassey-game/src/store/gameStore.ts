@@ -76,6 +76,7 @@ export const useGameStore = create<GameStore>()(
         lobbyId: state.lobbyId,
         isHost: state.isHost,
         status: state.status,
+        phase: state.phase,
       }),
     }
   )
