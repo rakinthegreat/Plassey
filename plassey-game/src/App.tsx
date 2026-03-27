@@ -11,6 +11,7 @@ import { HotseatReveal } from './components/HotseatReveal';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode, isHotseatMode } = useGameStore();
   const rejoinAttempted = useRef(false);
 
@@ -66,12 +67,20 @@ function App() {
             <p className="text-slate-500 uppercase tracking-[0.3em] text-sm font-bold mb-6">
               The Battle for Bengal • Social Deduction
             </p>
-            <button
-              onClick={() => setShowRules(true)}
-              className="px-6 py-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-full text-xs uppercase tracking-widest font-black transition-all shadow-lg active:scale-95 flex items-center gap-2 mx-auto"
-            >
-              <span>📖</span> Rules of Engagement
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mx-auto">
+              <button
+                onClick={() => setShowRules(true)}
+                className="px-6 py-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-full text-xs uppercase tracking-widest font-black transition-all shadow-lg active:scale-95 flex items-center gap-2"
+              >
+                <span>📖</span> Rules of Engagement
+              </button>
+              <button
+                onClick={() => setShowCredits(true)}
+                className="px-6 py-2 bg-slate-900/40 hover:bg-slate-800 border border-slate-800 text-slate-500 hover:text-slate-300 rounded-full text-xs uppercase tracking-widest font-black transition-all shadow-lg active:scale-95 flex items-center gap-2"
+              >
+                <span>🎖️</span> Credits
+              </button>
+            </div>
           </div>
         )}
 
@@ -197,6 +206,69 @@ function App() {
             <div className="p-4 border-t border-slate-800 bg-slate-900/30 flex justify-end">
               <button onClick={() => setShowRules(false)} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold uppercase tracking-widest transition-colors text-xs">
                 Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credits Modal */}
+      {showCredits && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                <span>🎖️</span> Credits & Acknowledgments
+              </h2>
+              <button onClick={() => setShowCredits(false)} className="text-slate-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 bg-slate-900/50 text-xl pb-1">
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-grow space-y-8 text-slate-300 text-sm leading-relaxed">
+              <section>
+                <h3 className="text-amber-500 font-black uppercase tracking-widest mb-3 border-b border-slate-800 pb-2">Development & Engineering</h3>
+                <div className="space-y-4">
+                  <div>
+                    <p className="font-black text-white text-lg tracking-tight">Developer:</p>
+                    <a
+                      href="https://github.com/rakinthegreat"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-500 hover:text-amber-400 text-xs font-bold uppercase tracking-widest transition-colors underline decoration-amber-500/30 underline-offset-4"
+                    >
+                      github.com/rakinthegreat
+                    </a>
+                  </div>
+                  <p className="italic text-slate-400">A personal project developed independently with the assistance of Generative AI.</p>
+                  <p>This digital adaptation was built specifically to solve the challenge of distance—designed for remote play so friends can enjoy the thrill of the game anywhere, anytime, right from their phone or browser.</p>
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <section>
+                  <h3 className="text-emerald-500 font-black uppercase tracking-widest mb-3 border-b border-slate-800 pb-2">Thematic Inspiration</h3>
+                  <p className="text-xs">The historical setting, characters, and thematic concept of this digital game were inspired by the tabletop board game <strong className="text-slate-200 uppercase tracking-tighter">Polashi</strong>, originally created by <span className="text-slate-200">Mohammad Arafat Wasiullah</span> and <span className="text-slate-200">Imtiaz Haider</span>, and published by <span className="text-emerald-600 font-black">Playground Inc.</span></p>
+                  <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-wide italic">(You can support the creators by purchasing the physical board game if you enjoy this digital experience!)</p>
+                </section>
+
+                <section>
+                  <h3 className="text-rose-500 font-black uppercase tracking-widest mb-3 border-b border-slate-800 pb-2">Mechanical Inspiration</h3>
+                  <p className="text-xs">The core social deduction and voting mechanics utilized in this game are fundamentally inspired by <strong className="text-slate-200 uppercase tracking-tighter">The Resistance: Avalon</strong>, designed by <span className="text-slate-200">Don Eskridge</span> and published by <span className="text-rose-600 font-black">Indie Boards & Cards.</span></p>
+                </section>
+              </div>
+
+              <section className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                <h3 className="text-slate-500 font-black uppercase tracking-widest mb-2 text-xs">Legal Disclaimer</h3>
+                <p className="text-[11px] text-slate-500 leading-normal uppercase tracking-tighter">
+                  This digital game is an unofficial, independent fan project. It is not affiliated with, maintained, authorized, endorsed, or sponsored by Playground Inc., Indie Boards & Cards, or any of their affiliates. All original code, digital artwork, and UI implementations are the property of the developer.
+                </p>
+              </section>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-900/30 flex justify-end">
+              <button onClick={() => setShowCredits(false)} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold uppercase tracking-widest transition-colors text-xs">
+                Close
               </button>
             </div>
           </div>
