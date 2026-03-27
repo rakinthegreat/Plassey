@@ -5,12 +5,16 @@ export const DownloadAppButton: React.FC = () => {
     const [downloadUrl, setDownloadUrl] = useState('');
 
     useEffect(() => {
-        // 1. Regex check for Android
+        // 1. Check if already in a native wrapper (Capacitor/Cordova)
+        const isNative = (window as any).Capacitor || (window as any).cordova;
+        if (isNative) return;
+
+        // 2. Regex check for Android
         const ua = navigator.userAgent;
         if (/android/i.test(ua)) {
             setIsAndroid(true);
             
-            // 2. Fetch latest release from GitHub
+            // 3. Fetch latest release from GitHub
             fetch('https://api.github.com/repos/rakinthegreat/Plassey/releases/latest')
                 .then(res => res.json())
                 .then(data => {
