@@ -13,6 +13,9 @@ interface GameStore extends GameState {
   isLanMode: boolean;
   lanHostIp: string;
   setLanMode: (isLan: boolean, hostIp: string) => void;
+  isAdvancedMode: boolean;
+  toggleAdvancedMode: () => void;
+  returnToQuarters: () => void;
   setLocalPlayerId: (id: string) => void;
   setPlayerName: (name: string) => void;
   setIsHost: (isHost: boolean) => void;
@@ -53,6 +56,7 @@ const initialState = {
   lanHostIp: '',
   isMuted: false,
   volume: 0.5,
+  isAdvancedMode: false,
 };
 
 export const useGameStore = create<GameStore>()(
@@ -72,6 +76,24 @@ export const useGameStore = create<GameStore>()(
       setLeaderId: (id: string | null) => set({ leaderId: id }),
       setCurrentRound: (round: number) => set({ currentRound: round }),
       setProposedTeam: (team: string[]) => set({ proposedTeam: team }),
+      toggleAdvancedMode: () => set((state) => ({ isAdvancedMode: !state.isAdvancedMode })),
+      returnToQuarters: () => set((state) => ({
+        ...state,
+        phase: 'lobby',
+        currentRound: 1,
+        failedProposals: 0,
+        leaderId: state.players[0]?.id || null,
+        proposedTeam: [],
+        teamVotes: {},
+        missionVotes: [],
+        roundHistory: ['pending', 'pending', 'pending', 'pending', 'pending'],
+        pendingVoters: [],
+        lastTeamVoteResult: null,
+        lastMissionVoteResult: null,
+        winner: undefined,
+        winReason: undefined,
+        players: state.players.map(p => ({ ...p, role: undefined, faction: undefined }))
+      })),
       setMasterState: (state: Partial<GameState>) => set((prev) => {
         const { localPlayerId, ...safeState } = state as any;
         return { ...prev, ...safeState };
@@ -115,6 +137,7 @@ export const useGameStore = create<GameStore>()(
         lanHostIp: state.lanHostIp,
         isMuted: state.isMuted,
         volume: state.volume,
+        isAdvancedMode: state.isAdvancedMode,
       }),
     }
   )

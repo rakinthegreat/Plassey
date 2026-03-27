@@ -3,6 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { ChatBox } from './ChatBox';
 import { GameEngine } from '../lib/GameEngine';
 import { webRTCManager } from '../lib/WebRTCManager';
+import type { Player } from '../types/game';
 
 export const GameBoard: React.FC = () => {
   const { 
@@ -19,17 +20,21 @@ export const GameBoard: React.FC = () => {
     winReason,
     pendingVoters,
     lastTeamVoteResult,
-    lastMissionVoteResult
+    lastMissionVoteResult,
+    isAdvancedMode,
+    returnToQuarters
   } = useGameStore();
-  
+
   const localPlayer = players.find(p => p.id === localPlayerId);
   const leader = players.find(p => p.id === leaderId);
+  const isHost = localPlayer?.isHost;
   const teamSize = GameEngine.getTeamSize(players.length, currentRound);
   const isOnTeam = localPlayerId ? proposedTeam.includes(localPlayerId) : false;
   const hasVotedTeam = localPlayerId ? !!teamVotes[localPlayerId] : false;
   
   const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
   const [revealCountdown, setRevealCountdown] = useState(10);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     if (phase === 'team_vote_reveal' || phase === 'mission_vote_reveal') {
@@ -50,15 +55,42 @@ export const GameBoard: React.FC = () => {
     }
   }, [phase, localPlayer?.isHost]);
 
-  const getVisibleFaction = (viewer: import('../types/game').Player | undefined, target: import('../types/game').Player) => {
+  const getVisibleIdentity = (viewer: Player | undefined, target: Player) => {
     if (!viewer) return undefined;
-    if (viewer.id === target.id) return target.faction;
-    if (phase === 'game_over') return target.faction;
+    if (viewer.id === target.id) return { faction: target.faction, role: target.role };
+    if (phase === 'game_over') return { faction: target.faction, role: target.role };
     
-    // Only allow asymmetrical vision during the initial "eyes open" role reveal phase
     if (phase === 'role_reveal') {
-      if (viewer.faction === 'eic' && target.faction === 'eic') return 'eic';
-      if (viewer.role === 'Mir Madan' && target.faction === 'eic') return 'eic';
+      if (isAdvancedMode) {
+        // 1. EIC Vision: All EIC members see each other, EXCEPT Omichand.
+        // Omichand is hidden from the rest of the EIC, but he sees them.
+        if (viewer.faction === 'eic') {
+          if (target.faction === 'eic') {
+            if (target.role === 'Omichand') return undefined; // Hidden from others
+            return { faction: 'eic' };
+          }
+        }
+        if (viewer.role === 'Omichand' && target.faction === 'eic') {
+           return { faction: 'eic' };
+        }
+
+        // 2. Mir Madan Vision: Sees all EIC members, EXCEPT Ray Durlabh.
+        if (viewer.role === 'Mir Madan' && target.faction === 'eic' && target.role !== 'Ray Durlabh') {
+          return { faction: 'eic' };
+        }
+
+        // 3. Mohonlal Vision: Sees exactly two people: Mir Madan and Ghaseti Begam. 
+        // BOTH must be presented to Mohonlal simply as "Mir Madan".
+        if (viewer.role === 'Mohonlal') {
+          if (target.role === 'Mir Madan' || target.role === 'Ghaseti Begum') {
+            return { role: 'Mir Madan', faction: 'nawab' }; // Masked as friendly commander
+          }
+        }
+      } else {
+        // Standard Mode Vision
+        if (viewer.faction === 'eic' && target.faction === 'eic') return { faction: 'eic' };
+        if (viewer.role === 'Mir Madan' && target.faction === 'eic') return { faction: 'eic' };
+      }
     }
     
     return undefined;
@@ -111,6 +143,29 @@ export const GameBoard: React.FC = () => {
       senderId: localPlayerId || '',
       data: {}
     });
+  };
+
+  const handleConfirmReset = () => {
+    if (!isHost) return;
+    returnToQuarters();
+    webRTCManager.broadcastState({
+      phase: 'lobby',
+      status: 'lobby',
+      players: players.map(p => ({ ...p, role: undefined, faction: undefined })),
+      currentRound: 1,
+      failedProposals: 0,
+      leaderId: players[0]?.id || null,
+      proposedTeam: [],
+      teamVotes: {},
+      missionVotes: [],
+      roundHistory: ['pending', 'pending', 'pending', 'pending', 'pending'],
+      pendingVoters: [],
+      lastTeamVoteResult: null,
+      lastMissionVoteResult: null,
+      winner: undefined,
+      winReason: undefined
+    });
+    setShowResetConfirm(false);
   };
 
   const handleContinuePhase = () => {
@@ -221,8 +276,8 @@ export const GameBoard: React.FC = () => {
             <h2 className="text-3xl font-black text-white mb-6 uppercase tracking-tight">The Leader Proposes:</h2>
             
             <div className="flex flex-wrap justify-center gap-4 mb-10">
-              {proposedTeam.map(pid => {
-                const p = players.find(p => p.id === pid);
+              {proposedTeam.map((pid: string) => {
+                const p = players.find(player => player.id === pid);
                 return (
                   <div key={pid} className="flex items-center gap-3 px-6 py-3 bg-slate-800 rounded-xl border border-slate-700 shadow-xl">
                     <div className="w-8 h-8 rounded bg-amber-600 flex items-center justify-center text-xs font-black text-white">
@@ -260,7 +315,7 @@ export const GameBoard: React.FC = () => {
             <div className="w-full max-w-lg bg-slate-900/40 border border-slate-800 rounded-xl p-4">
               <h4 className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-3 text-left">Awaiting Dispatches ({pendingVoters.length})</h4>
               <div className="flex flex-wrap gap-2">
-                {pendingVoters.map(id => {
+                {pendingVoters.map((id: string) => {
                   const p = players.find(p => p.id === id);
                   return (
                     <div key={id} className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
@@ -348,7 +403,7 @@ export const GameBoard: React.FC = () => {
             <div className="w-full max-w-lg bg-slate-900/40 border border-slate-800 rounded-xl p-4">
               <h4 className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-3 text-left">Awaiting Dispatches ({pendingVoters.length})</h4>
               <div className="flex flex-wrap gap-2">
-                {pendingVoters.map(id => {
+                {pendingVoters.map((id: string) => {
                   const p = players.find(p => p.id === id);
                   return (
                     <div key={id} className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
@@ -408,7 +463,7 @@ export const GameBoard: React.FC = () => {
                 </p>
                 
                 <div className="grid grid-cols-2 gap-3 mb-8">
-                  {validTargets.map(p => (
+                  {validTargets.map((p: Player) => (
                     <button
                       key={p.id}
                       onClick={() => handleGuessMirMadan(p.id)}
@@ -454,7 +509,7 @@ export const GameBoard: React.FC = () => {
             <div className="w-full max-w-2xl bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-2xl mb-8">
               <h4 className="text-slate-500 uppercase tracking-widest text-xs font-bold mb-6 text-center border-b border-slate-800 pb-4">Full Roster Debrief</h4>
               <div className="grid gap-3">
-                {players.map(p => (
+                {players.map((p: Player) => (
                   <div key={p.id} className={`flex items-center justify-between p-4 rounded-xl border ${
                     p.faction === 'nawab' ? 'bg-emerald-900/10 border-emerald-500/20' : 'bg-rose-900/10 border-rose-500/20'
                   }`}>
@@ -510,35 +565,41 @@ export const GameBoard: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">The General Staff</h4>
               <div className="flex gap-1">
-                {Array.from({ length: 5 }).map((_, i) => (
+                {Array.from({ length: 5 }).map((_: any, i: number) => (
                     <div key={i} className={`w-2 h-2 rounded-sm ${i < currentRound ? 'bg-amber-600' : 'bg-slate-800'}`}></div>
                 ))}
               </div>
           </div>
           <div className="space-y-2">
-            {players.map(p => {
-              const visibleFaction = getVisibleFaction(localPlayer, p);
+            {players.map((p: Player) => {
+              const identity = getVisibleIdentity(localPlayer, p);
+              const isEIC = identity?.faction === 'eic';
+              const isMaskedCommander = identity?.role === 'Mir Madan' && p.id !== localPlayerId && localPlayer?.role === 'Mohonlal';
+
               return (
               <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors border ${
                 p.id === leaderId ? 'border-amber-500/40 bg-amber-500/5' : 'border-transparent bg-slate-800/30'
               }`}>
                 <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${
-                  visibleFaction === 'eic' ? 'bg-rose-600 text-white' : 
-                  visibleFaction === 'nawab' && p.id === localPlayerId ? 'bg-emerald-600 text-white' :
+                  isEIC ? 'bg-rose-600 text-white' : 
+                  isMaskedCommander ? 'bg-emerald-600 text-white animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
+                  identity?.faction === 'nawab' && p.id === localPlayerId ? 'bg-emerald-600 text-white' :
                   p.id === leaderId ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'
                 }`}>
                   {p.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex flex-col">
                     <span className={`text-[11px] font-bold leading-none ${
-                        visibleFaction === 'eic' ? 'text-rose-400' :
-                        visibleFaction === 'nawab' && p.id === localPlayerId ? 'text-emerald-400' :
+                        isEIC ? 'text-rose-400' :
+                        isMaskedCommander ? 'text-emerald-400' :
+                        identity?.faction === 'nawab' && p.id === localPlayerId ? 'text-emerald-400' :
                         p.id === localPlayerId ? 'text-amber-500' : 'text-slate-300'
                     }`}>
                         {p.name} {p.id === localPlayerId && <span className="text-[8px] ml-1 opacity-50 underline">(YOU)</span>}
                     </span>
                     {p.id === leaderId && <span className="text-[8px] text-amber-500/70 font-black uppercase tracking-tighter">Current Leader</span>}
-                    {visibleFaction === 'eic' && p.id !== localPlayerId && <span className="text-[8px] text-rose-500 font-black uppercase tracking-tighter animate-pulse mt-0.5">Known Traitor</span>}
+                    {isEIC && p.id !== localPlayerId && <span className="text-[8px] text-rose-500 font-black uppercase tracking-tighter animate-pulse mt-0.5">Known Traitor</span>}
+                    {isMaskedCommander && <span className="text-[8px] text-emerald-500 font-black uppercase tracking-tighter mt-0.5">Mir Madan</span>}
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                     {p.id === leaderId && <span className="text-amber-500 animate-pulse">⭐</span>}
@@ -590,22 +651,59 @@ export const GameBoard: React.FC = () => {
                     </p>
                 </div>
              </div>
-             <div className="flex items-center gap-3">
-                <div className="text-right mr-2">
+              <div className="flex items-center gap-3">
+                 {isHost && phase !== 'game_over' && (
+                    <button 
+                      onClick={() => setShowResetConfirm(true)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                    >
+                      <span>🔄</span> Reset to Lobby
+                    </button>
+                 )}
+                 <div className="text-right mr-2">
                     <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">Mission Progress</p>
                     <div className="flex gap-1 justify-end">
-                        {roundHistory.map((result, i) => (
-                            <div key={i} className={`w-3 h-1.5 rounded-full border ${
-                                result === 'pending' ? 'bg-slate-800 border-slate-700' :
-                                result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                                'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                            }`}></div>
-                        ))}
-                    </div>
+                         {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
+                             <div key={i} className={`w-3 h-1.5 rounded-full border ${
+                                 result === 'pending' ? 'bg-slate-800 border-slate-700' :
+                                 result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                                 'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                             }`}></div>
+                         ))}
+                     </div>
                 </div>
              </div>
         </div>
       </main>
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl text-center animate-in zoom-in-95 duration-500">
+              <div className="w-16 h-16 bg-rose-600/20 border-2 border-rose-500 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">
+                 ⚠️
+              </div>
+              <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-4">Tactical Reset?</h2>
+              <p className="text-slate-400 text-sm leading-relaxed mb-8">
+                 Are you sure you want to end this campaign early and return to the lobby? All current progress will be lost, but players will remain connected.
+              </p>
+              <div className="flex gap-4">
+                 <button 
+                    onClick={() => setShowResetConfirm(false)}
+                    className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl uppercase tracking-widest text-xs hover:bg-slate-700 transition-all"
+                 >
+                    Cancel
+                 </button>
+                 <button 
+                    onClick={handleConfirmReset}
+                    className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-500 transition-all shadow-lg"
+                 >
+                    Confirm Reset
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

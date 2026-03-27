@@ -21,6 +21,7 @@ export interface GameState {
   roundHistory: ('nawab' | 'eic' | 'pending')[];
   winner?: 'nawab' | 'eic';
   winReason?: string;
+  isAdvancedMode: boolean;
   pendingVoters: string[];
   lastTeamVoteResult?: { approve: number; reject: number; passed: boolean } | null;
   lastMissionVoteResult?: { support: number; sabotage: number; passed: boolean } | null;

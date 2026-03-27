@@ -10,11 +10,20 @@ export const Lobby: React.FC = () => {
   const isHost = localPlayer?.isHost || false;
   const canStart = players.length >= 5;
 
+  const toggleAdvancedMode = useGameStore(state => state.toggleAdvancedMode);
+  const isAdvancedMode = useGameStore(state => state.isAdvancedMode);
+
+  const handleToggleAdvanced = () => {
+    if (!isHost) return;
+    toggleAdvancedMode();
+    webRTCManager.broadcastState({ isAdvancedMode: !isAdvancedMode });
+  };
+
   const handleStartGame = () => {
     if (!isHost) return;
     
     // 1. Assign Secret Roles
-    const playersWithRoles = GameEngine.assignRoles(players);
+    const playersWithRoles = GameEngine.assignRoles(players, isAdvancedMode);
     
     // 2. Select First Leader (Random)
     const leader = playersWithRoles[Math.floor(Math.random() * playersWithRoles.length)];
@@ -35,6 +44,7 @@ export const Lobby: React.FC = () => {
     // 5. Broadcast to all peers
     webRTCManager.broadcastState({
       lobbyId: lobbyId || '',
+      isAdvancedMode,
       ...initialState
     } as any);
   };
@@ -61,6 +71,18 @@ export const Lobby: React.FC = () => {
         
         {isHost && (
           <div className="text-right">
+            <div className="flex items-center justify-end gap-3 mb-4">
+              <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isAdvancedMode ? 'text-amber-500' : 'text-slate-600'}`}>
+                Advanced Mode
+              </span>
+              <button 
+                onClick={handleToggleAdvanced}
+                className={`w-10 h-5 rounded-full transition-all relative ${isAdvancedMode ? 'bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.3)]' : 'bg-slate-700'}`}
+              >
+                <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${isAdvancedMode ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            
             <button
               onClick={handleStartGame}
               disabled={!canStart}

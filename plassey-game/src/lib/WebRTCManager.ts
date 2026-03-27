@@ -737,7 +737,7 @@ export class WebRTCManager {
         }
 
         if (payload.type === "start_game") {
-          const playersWithRoles = GameEngine.assignRoles(store.players);
+          const playersWithRoles = GameEngine.assignRoles(store.players, store.isAdvancedMode);
           const newState = {
             players: playersWithRoles,
             status: 'in_progress' as const,

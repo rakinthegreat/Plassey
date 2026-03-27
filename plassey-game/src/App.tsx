@@ -178,6 +178,16 @@ function App() {
                 </div>
               </section>
 
+              <section className="bg-amber-500/5 p-4 rounded-xl border border-amber-500/10">
+                <h3 className="text-amber-500 font-black uppercase tracking-widest mb-3 border-b border-amber-500/20 pb-2">Advanced Operations</h3>
+                <p className="text-xs mb-4">When Advanced Mode is enabled, historical role complexities are introduced:</p>
+                <ul className="space-y-3 font-medium">
+                  <li className="flex gap-3"><span className="text-emerald-400">🕵️</span> <div><strong>Mohonlal (Nawab):</strong> Sees the real Mir Madan AND Ghaseti Begum (EIC) as "Mir Madan". He must deduce the true commander.</div></li>
+                  <li className="flex gap-3"><span className="text-rose-400">🕶️</span> <div><strong>Omichand (EIC):</strong> Sees fellow EIC members, but he is HIDDEN from their vision.</div></li>
+                  <li className="flex gap-3"><span className="text-rose-400">🌫️</span> <div><strong>Ray Durlabh (EIC):</strong> Completely HIDDEN from Mir Madan's vision.</div></li>
+                </ul>
+              </section>
+
             </div>
 
             <div className="p-4 border-t border-slate-800 bg-slate-900/30 flex justify-end">

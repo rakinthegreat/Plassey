@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { webRTCManager } from '../lib/WebRTCManager';
 import { v4 as uuidv4 } from 'uuid';
+import { DownloadAppButton } from './DownloadAppButton';
 
 export const MainMenu: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -280,6 +281,7 @@ export const MainMenu: React.FC = () => {
           </button>
         </div>
 
+        <DownloadAppButton />
       </div>
       
       <p className="mt-8 text-slate-500 text-[10px] uppercase tracking-widest text-center">Battle of Plassey 1757 • P2P Deduction</p>

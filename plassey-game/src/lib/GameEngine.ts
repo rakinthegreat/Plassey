@@ -6,7 +6,7 @@ export const GameEngine = {
    * নবাব (Nawab) = Green (Loyalists)
    * ইইসি (EIC) = Red (Spies/Traitors)
    */
-  assignRoles: (players: Player[]): Player[] => {
+  assignRoles: (players: Player[], isAdvancedMode: boolean): Player[] => {
     const count = players.length;
     let redCount = 2;
     if (count < 5) redCount = 1; // Testing mode
@@ -15,38 +15,54 @@ export const GameEngine = {
     
     const greenCount = count - redCount;
 
-    // Mandatory Roles
-    const mandatoryGreen = { role: 'Mir Madan', faction: 'nawab' as const };
-    const mandatoryRed = { role: 'Mir Jafar', faction: 'eic' as const };
-
-    // Pool of potential roles
-    const greenPool = [
-      'Nawab Siraj-ud-Dawlah', 
-      'Lutfunnisa Begum', 
-      'Mohonlal', 
-      'St. Frais', 
-      'Khwaja Hadi Khan'
-    ];
-    const redPool = [
-      'Ray Durlabh', 
-      'Ghaseti Begum', 
-      'Omichand'
-    ];
-
     // Helper to shuffle array
     const shuffle = <T>(array: T[]): T[] => {
       return array.sort(() => Math.random() - 0.5);
     };
 
-    const selectedGreenRoles = greenCount > 1 ? shuffle(greenPool).slice(0, greenCount - 1) : [];
-    const selectedRedRoles = redCount > 1 ? shuffle(redPool).slice(0, redCount - 1) : [];
+    let selectedReds: { role: string, faction: 'eic' }[] = [];
+    let selectedGreens: { role: string, faction: 'nawab' }[] = [];
 
-    const finalRoster = shuffle([
-      mandatoryGreen,
-      mandatoryRed,
-      ...selectedGreenRoles.map(r => ({ role: r, faction: 'nawab' as const })),
-      ...selectedRedRoles.map(r => ({ role: r, faction: 'eic' as const }))
-    ]);
+    if (isAdvancedMode) {
+      // Advanced Role Distribution
+      const redPotential = [
+        { role: 'Mir Jafar', faction: 'eic' as const },
+        { role: 'Ghaseti Begum', faction: 'eic' as const },
+        { role: 'Ray Durlabh', faction: 'eic' as const },
+        { role: 'Omichand', faction: 'eic' as const }
+      ];
+      const greenPotential = [
+        { role: 'Mir Madan', faction: 'nawab' as const },
+        { role: 'Mohonlal', faction: 'nawab' as const },
+        { role: 'Nawab Siraj-ud-Dawlah', faction: 'nawab' as const },
+        { role: 'Lutfunnisa Begum', faction: 'nawab' as const },
+        { role: 'St. Frais', faction: 'nawab' as const }
+      ];
+
+      // Greedily take priority roles for Advanced Mode
+      selectedReds = redPotential.slice(0, redCount);
+      selectedGreens = greenPotential.slice(0, greenCount);
+      
+      // Fallback for more players than potential roles
+      while (selectedGreens.length < greenCount) {
+        selectedGreens.push({ role: 'Loyal Commander', faction: 'nawab' as const });
+      }
+    } else {
+      // Standard Mode
+      const mandatoryGreen = { role: 'Mir Madan', faction: 'nawab' as const };
+      const mandatoryRed = { role: 'Mir Jafar', faction: 'eic' as const };
+
+      const greenPool = ['Nawab Siraj-ud-Dawlah', 'Lutfunnisa Begum', 'Mohonlal', 'St. Frais', 'Khwaja Hadi Khan'];
+      const redPool = ['Ray Durlabh', 'Ghaseti Begum', 'Omichand'];
+
+      const shuffledGreen = shuffle(greenPool);
+      const shuffledRed = shuffle(redPool);
+
+      selectedGreens = [mandatoryGreen, ...shuffledGreen.slice(0, greenCount - 1).map(r => ({ role: r, faction: 'nawab' as const }))];
+      selectedReds = [mandatoryRed, ...shuffledRed.slice(0, redCount - 1).map(r => ({ role: r, faction: 'eic' as const }))];
+    }
+
+    const finalRoster = shuffle([...selectedGreens, ...selectedReds]);
 
     // Assign to players
     return players.map((player, index) => ({
