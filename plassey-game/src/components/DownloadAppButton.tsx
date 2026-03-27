@@ -6,7 +6,8 @@ export const DownloadAppButton: React.FC = () => {
 
     useEffect(() => {
         // 1. Check if already in a native wrapper (Capacitor/Cordova)
-        const isNative = (window as any).Capacitor || (window as any).cordova;
+        // Capacitor.isNativePlatform is true only on iOS/Android devices
+        const isNative = (window as any).Capacitor?.isNativePlatform || (window as any).cordova;
         if (isNative) return;
 
         // 2. Regex check for Android
