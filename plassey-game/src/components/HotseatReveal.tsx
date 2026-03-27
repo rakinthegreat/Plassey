@@ -31,6 +31,9 @@ export const HotseatReveal: React.FC = () => {
             setHotseatActivePlayerIndex(activeIndex + 1);
         } else {
             // End of reveal, start the game
+            setHotseatActivePlayerIndex(0);
+            const { setTransitionScreen } = useGameStore.getState();
+            setTransitionScreen(true);
             setStatus('in_progress');
             setPhase('team_proposal');
         }

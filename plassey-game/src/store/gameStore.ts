@@ -165,6 +165,9 @@ export const useGameStore = create<GameStore>()(
         isMuted: state.isMuted,
         volume: state.volume,
         isAdvancedMode: state.isAdvancedMode,
+        isHotseatMode: state.isHotseatMode,
+        hotseatActivePlayerIndex: state.hotseatActivePlayerIndex,
+        showTransitionScreen: state.showTransitionScreen,
       }),
     }
   )

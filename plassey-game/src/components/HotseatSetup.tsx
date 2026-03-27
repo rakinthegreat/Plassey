@@ -8,11 +8,11 @@ export const HotseatSetup: React.FC = () => {
     const [step, setStep] = useState(1);
     const [numPlayers, setNumPlayers] = useState(5);
     const [names, setNames] = useState<string[]>(Array(5).fill(''));
-    const { 
-        setHotseatMode, 
-        setStatus, 
-        isAdvancedMode, 
-        toggleAdvancedMode, 
+    const {
+        setHotseatMode,
+        setStatus,
+        isAdvancedMode,
+        toggleAdvancedMode,
         updatePlayers,
         setPhase,
         setHotseatActivePlayerIndex,
@@ -21,7 +21,7 @@ export const HotseatSetup: React.FC = () => {
     } = useGameStore();
 
     const hapticImpact = async () => {
-        try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch (e) {}
+        try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch (e) { }
     };
 
     const handleNumSelect = (n: number) => {
@@ -53,15 +53,15 @@ export const HotseatSetup: React.FC = () => {
         const playersWithRoles = GameEngine.assignRoles(players, isAdvancedMode);
 
         // 3. Setup Store
-        updatePlayers(playersWithRoles);
         setHotseatMode(true);
+        updatePlayers(playersWithRoles);
         setHotseatActivePlayerIndex(0);
         setCurrentRound(1);
         setLeaderId(playersWithRoles[Math.floor(Math.random() * playersWithRoles.length)].id);
-        
+
         // 4. Transition to Reveal
         setStatus('hotseat_reveal');
-        setPhase('hotseat_reveal');
+        setPhase('role_reveal'); // Use role_reveal as the initial phase for reveal
     };
 
     return (
@@ -82,17 +82,16 @@ export const HotseatSetup: React.FC = () => {
                             <button
                                 key={n}
                                 onClick={() => handleNumSelect(n)}
-                                className={`py-4 rounded-xl border-2 font-black text-xl transition-all ${
-                                    numPlayers === n 
-                                    ? 'bg-amber-600 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]' 
-                                    : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
-                                }`}
+                                className={`py-4 rounded-xl border-2 font-black text-xl transition-all ${numPlayers === n
+                                        ? 'bg-amber-600 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]'
+                                        : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                                    }`}
                             >
                                 {n}
                             </button>
                         ))}
                     </div>
-                    <button 
+                    <button
                         onClick={() => setStatus('menu')}
                         className="w-full py-2 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:text-white transition-colors"
                     >
@@ -112,7 +111,7 @@ export const HotseatSetup: React.FC = () => {
                         {names.map((name, i) => (
                             <div key={i} className="flex flex-col gap-1">
                                 <label className="text-[9px] text-slate-600 font-black uppercase tracking-widest pl-1">Unit {i + 1}</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={name}
                                     placeholder={`Commander ${i + 1} Name`}
@@ -129,7 +128,7 @@ export const HotseatSetup: React.FC = () => {
                                 <h4 className="text-sm font-bold text-slate-200">Advanced Mode</h4>
                                 <p className="text-[10px] text-slate-500 font-medium">Historical complex role matrix</p>
                             </div>
-                            <button 
+                            <button
                                 onClick={toggleAdvancedMode}
                                 className={`w-12 h-6 rounded-full transition-colors relative ${isAdvancedMode ? 'bg-amber-600' : 'bg-slate-600'}`}
                             >
@@ -138,17 +137,17 @@ export const HotseatSetup: React.FC = () => {
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                            <button 
+                            <button
                                 onClick={() => setStep(1)}
                                 className="w-full py-3 bg-slate-800 text-slate-400 font-black uppercase tracking-widest rounded-xl hover:bg-slate-750 transition-all text-xs"
                             >
                                 Back
                             </button>
-                            <button 
+                            <button
                                 onClick={handleStart}
                                 className="w-full py-3 bg-amber-600 text-white font-black uppercase tracking-widest rounded-xl shadow-lg hover:shadow-amber-500/20 active:scale-95 transition-all text-xs"
                             >
-                                Commencing
+                                Commence
                             </button>
                         </div>
                     </div>

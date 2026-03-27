@@ -11,7 +11,7 @@ import { HotseatReveal } from './components/HotseatReveal';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
-  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode } = useGameStore();
+  const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode, isHotseatMode } = useGameStore();
   const rejoinAttempted = useRef(false);
 
   useEffect(() => {
@@ -92,7 +92,7 @@ function App() {
         </main>
 
         {/* Tactical Link Alert (Non-blocking) - Cloud Mode Only */}
-        {status !== 'menu' && !isLanMode && (
+        {status !== 'menu' && !isLanMode && !isHotseatMode && (
           (phase === 'lobby' && (networkStatus === 'none' || networkStatus === 'signaling')) ||
           (phase !== 'lobby' && (networkStatus === 'none' || networkStatus === 'signaling'))
         ) && (
