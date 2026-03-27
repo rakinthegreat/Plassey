@@ -15,6 +15,7 @@ export const MainMenu: React.FC = () => {
   
   const setStatus = useGameStore((state) => state.setStatus);
   const setLocalPlayerId = useGameStore((state) => state.setLocalPlayerId);
+  const setHotseatMode = useGameStore((state) => state.setHotseatMode);
   const setLobbyId = useGameStore((state) => state.setLobbyId);
   const updatePlayers = useGameStore((state) => state.updatePlayers);
   const setStorePlayerName = useGameStore((state) => state.setPlayerName);
@@ -256,6 +257,16 @@ export const MainMenu: React.FC = () => {
           className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-amber-500/20 transform active:scale-95 transition-all flex items-center justify-center gap-2"
         >
           <span>Host a Campaign</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setHotseatMode(true);
+            setStatus('hotseat_setup');
+          }}
+          className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+          <span>🤝 Pass & Play</span>
         </button>
 
         <div className="relative flex items-center py-2">

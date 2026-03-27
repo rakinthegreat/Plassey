@@ -9,8 +9,8 @@ export interface Player {
 
 export interface GameState {
   lobbyId: string;
-  status: 'menu' | 'lobby' | 'in_progress';
-  phase: 'lobby' | 'role_reveal' | 'team_proposal' | 'team_voting' | 'team_vote_reveal' | 'mission_voting' | 'mission_vote_reveal' | 'identify_mir_madan' | 'game_over';
+  status: 'menu' | 'lobby' | 'in_progress' | 'hotseat_setup' | 'hotseat_reveal';
+  phase: 'lobby' | 'role_reveal' | 'team_proposal' | 'team_voting' | 'team_vote_reveal' | 'mission_voting' | 'mission_vote_reveal' | 'identify_mir_madan' | 'game_over' | 'hotseat_setup' | 'hotseat_reveal';
   players: Player[];
   currentRound: number;
   failedProposals: number;
@@ -25,6 +25,9 @@ export interface GameState {
   pendingVoters: string[];
   lastTeamVoteResult?: { approve: number; reject: number; passed: boolean } | null;
   lastMissionVoteResult?: { support: number; sabotage: number; passed: boolean } | null;
+  isHotseatMode: boolean;
+  hotseatActivePlayerIndex: number;
+  showTransitionScreen: boolean;
 }
 
 export type NetworkPayload = {

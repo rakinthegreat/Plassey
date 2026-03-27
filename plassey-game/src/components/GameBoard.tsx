@@ -4,17 +4,19 @@ import { ChatBox } from './ChatBox';
 import { GameEngine } from '../lib/GameEngine';
 import { webRTCManager } from '../lib/WebRTCManager';
 import type { Player } from '../types/game';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 export const GameBoard: React.FC = () => {
-  const { 
-    players, 
-    localPlayerId, 
-    phase, 
-    leaderId, 
-    currentRound, 
+  const {
+    players,
+    localPlayerId,
+    phase,
+    leaderId,
+    currentRound,
     setPhase,
     proposedTeam,
     teamVotes,
+    missionVotes,
     roundHistory,
     winner,
     winReason,
@@ -22,7 +24,23 @@ export const GameBoard: React.FC = () => {
     lastTeamVoteResult,
     lastMissionVoteResult,
     isAdvancedMode,
-    returnToQuarters
+    returnToQuarters,
+    setStatus,
+    isHotseatMode,
+    hotseatActivePlayerIndex,
+    showTransitionScreen,
+    setHotseatActivePlayerIndex,
+    setTransitionScreen,
+    setProposedTeam,
+    setPendingVoters,
+    setTeamVotes,
+    setMissionVotes,
+    setLastTeamVoteResult,
+    setLastMissionVoteResult,
+    setRoundHistory,
+    setWinner,
+    setLeaderId,
+    setCurrentRound
   } = useGameStore();
 
   const localPlayer = players.find(p => p.id === localPlayerId);
@@ -30,8 +48,15 @@ export const GameBoard: React.FC = () => {
   const isHost = localPlayer?.isHost;
   const teamSize = GameEngine.getTeamSize(players.length, currentRound);
   const isOnTeam = localPlayerId ? proposedTeam.includes(localPlayerId) : false;
-  const hasVotedTeam = localPlayerId ? !!teamVotes[localPlayerId] : false;
-  
+
+  // In Hotseat mode, "localPlayer" is whoever the device is passed to
+  const activePlayer = isHotseatMode ? players[hotseatActivePlayerIndex] : players.find(p => p.id === localPlayerId);
+  const hasVotedTeam = isHotseatMode
+    ? !!teamVotes[activePlayer?.id || '']
+    : (localPlayerId ? !!teamVotes[localPlayerId] : false);
+
+  const isLeader = activePlayer?.id === leaderId;
+
   const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
   const [revealCountdown, setRevealCountdown] = useState(10);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -40,7 +65,7 @@ export const GameBoard: React.FC = () => {
     if (phase === 'team_vote_reveal' || phase === 'mission_vote_reveal') {
       setRevealCountdown(10);
       const timer = setInterval(() => {
-        setRevealCountdown(prev => {
+        setRevealCountdown((prev: number) => {
           if (prev <= 1) {
             clearInterval(timer);
             if (localPlayer?.isHost) {
@@ -59,7 +84,7 @@ export const GameBoard: React.FC = () => {
     if (!viewer) return undefined;
     if (viewer.id === target.id) return { faction: target.faction, role: target.role };
     if (phase === 'game_over') return { faction: target.faction, role: target.role };
-    
+
     if (phase === 'role_reveal') {
       if (isAdvancedMode) {
         // 1. EIC Vision: All EIC members see each other, EXCEPT Omichand.
@@ -71,7 +96,7 @@ export const GameBoard: React.FC = () => {
           }
         }
         if (viewer.role === 'Omichand' && target.faction === 'eic') {
-           return { faction: 'eic' };
+          return { faction: 'eic' };
         }
 
         // 2. Mir Madan Vision: Sees all EIC members, EXCEPT Ray Durlabh.
@@ -92,57 +117,135 @@ export const GameBoard: React.FC = () => {
         if (viewer.role === 'Mir Madan' && target.faction === 'eic') return { faction: 'eic' };
       }
     }
-    
+
     return undefined;
   };
 
   const togglePlayerSelection = (id: string) => {
-    setSelectedTeam(prev => 
-      prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]
+    setSelectedTeam((prev: string[]) =>
+      prev.includes(id) ? prev.filter((pid: string) => pid !== id) : [...prev, id]
     );
   };
 
   const handleSubmitTeam = () => {
     if (selectedTeam.length !== teamSize) return;
-    
-    webRTCManager.sendActionToHost({
-      type: 'propose_team',
-      senderId: localPlayerId || '',
-      data: { team: selectedTeam }
-    });
+    hapticImpact();
+
+    if (isHotseatMode) {
+      setProposedTeam(selectedTeam);
+      setPhase('team_voting');
+      setPendingVoters(players.map(p => p.id));
+      setHotseatActivePlayerIndex(0);
+      setTransitionScreen(true);
+    } else {
+      webRTCManager.sendActionToHost({
+        type: 'propose_team',
+        senderId: localPlayerId || '',
+        data: { team: selectedTeam }
+      });
+    }
   };
 
   const handleVoteTeam = (vote: 'approve' | 'reject') => {
-    webRTCManager.sendActionToHost({
-      type: 'vote_team',
-      senderId: localPlayerId || '',
-      data: { vote }
-    });
+    hapticImpact();
+    if (isHotseatMode) {
+      const currentVotes = { ...teamVotes, [activePlayer!.id]: vote };
+      setTeamVotes(currentVotes);
+
+      const nextPending = pendingVoters.filter(id => id !== activePlayer?.id);
+      setPendingVoters(nextPending);
+
+      if (hotseatActivePlayerIndex < players.length - 1) {
+        setHotseatActivePlayerIndex(hotseatActivePlayerIndex + 1);
+        setTransitionScreen(true);
+      } else {
+        const approvals = Object.values(currentVotes).filter(v => v === 'approve').length;
+        const rejections = players.length - approvals;
+        const passed = approvals > rejections;
+
+        setLastTeamVoteResult({ approve: approvals, reject: rejections, passed });
+        setPhase('team_vote_reveal');
+        setHotseatActivePlayerIndex(0);
+      }
+    } else {
+      webRTCManager.sendActionToHost({
+        type: 'vote_team',
+        senderId: localPlayerId || '',
+        data: { vote }
+      });
+    }
   };
 
   const handleVoteMission = (vote: 'support' | 'sabotage') => {
-    webRTCManager.sendActionToHost({
-      type: 'vote_mission',
-      senderId: localPlayerId || '',
-      data: { vote }
-    });
+    hapticImpact(ImpactStyle.Heavy);
+    if (isHotseatMode) {
+      const currentVotes = [...(missionVotes as any), vote];
+      setMissionVotes(currentVotes as any);
+
+      const nextPending = pendingVoters.filter(id => id !== activePlayer?.id);
+      setPendingVoters(nextPending);
+
+      // Find index of next person on mission
+      const missionMemberIndices = players
+        .map((p, i) => proposedTeam.includes(p.id) ? i : -1)
+        .filter(i => i !== -1);
+
+      const currentIndexInMission = missionMemberIndices.indexOf(hotseatActivePlayerIndex);
+      if (currentIndexInMission < missionMemberIndices.length - 1) {
+        setHotseatActivePlayerIndex(missionMemberIndices[currentIndexInMission + 1]);
+        setTransitionScreen(true);
+      } else {
+        const sabotages = currentVotes.filter(v => v === 'sabotage').length;
+        const requiredSabotages = (players.length >= 7 && currentRound === 4) ? 2 : 1;
+        const passed = sabotages < requiredSabotages;
+
+        setLastMissionVoteResult({ support: currentVotes.length - sabotages, sabotage: sabotages, passed });
+        setPhase('mission_vote_reveal');
+        setHotseatActivePlayerIndex(0);
+      }
+    } else {
+      webRTCManager.sendActionToHost({
+        type: 'vote_mission',
+        senderId: localPlayerId || '',
+        data: { vote }
+      });
+    }
   };
 
   const handleGuessMirMadan = (targetId: string) => {
-    if (localPlayer?.faction !== 'eic') return;
-    webRTCManager.sendActionToHost({
-      type: 'guess_mir_madan',
-      senderId: localPlayerId || '',
-      data: { targetId }
-    });
+    hapticImpact(ImpactStyle.Heavy);
+    if (isHotseatMode) {
+      const target = players.find(p => p.id === targetId);
+      if (target?.role === 'Mir Madan') {
+        setWinner('eic', 'mir_madan_assassinated');
+      } else {
+        setWinner('nawab', '3_missions_won_mir_madan_safe');
+      }
+    } else {
+      if (localPlayer?.faction !== 'eic') return;
+      webRTCManager.sendActionToHost({
+        type: 'guess_mir_madan',
+        senderId: localPlayerId || '',
+        data: { targetId }
+      });
+    }
   };
 
   const handleReturnToLobby = () => {
-    webRTCManager.sendActionToHost({
-      type: 'return_to_lobby',
-      senderId: localPlayerId || '',
-      data: {}
-    });
+    if (isHotseatMode) {
+      returnToQuarters();
+      setStatus('lobby');
+    } else {
+      webRTCManager.sendActionToHost({
+        type: 'return_to_lobby',
+        senderId: localPlayerId || '',
+        data: {}
+      });
+    }
+  };
+
+  const hapticImpact = async (style: ImpactStyle = ImpactStyle.Medium) => {
+    try { await Haptics.impact({ style }); } catch (e) { }
   };
 
   const handleConfirmReset = () => {
@@ -169,11 +272,88 @@ export const GameBoard: React.FC = () => {
   };
 
   const handleContinuePhase = () => {
-    webRTCManager.sendActionToHost({
-      type: 'continue_phase',
-      senderId: localPlayerId || '',
-      data: {}
-    });
+    if (isHotseatMode) {
+      // Local state machine logic for Hotseat
+      if (phase === 'team_vote_reveal') {
+        if (lastTeamVoteResult?.passed) {
+          setPhase('mission_voting');
+          setPendingVoters([...proposedTeam]);
+          // Active player = first person on mission
+          const firstOnMission = players.findIndex(p => proposedTeam.includes(p.id));
+          setHotseatActivePlayerIndex(firstOnMission);
+          setTransitionScreen(true);
+        } else {
+          // Rotate leader locally
+          const leaderIndex = players.findIndex(p => p.id === leaderId);
+          const nextLeader = players[(leaderIndex + 1) % players.length];
+          setLeaderId(nextLeader.id);
+          setPhase('team_proposal');
+          setHotseatActivePlayerIndex((leaderIndex + 1) % players.length);
+          // check game over for 5 failed
+          // (simplified logic just to rotate for now)
+        }
+        setTeamVotes({});
+        setPendingVoters([]);
+      } else if (phase === 'mission_vote_reveal') {
+        const outcome = lastMissionVoteResult?.passed ? 'nawab' : 'eic';
+        const newHistory = [...roundHistory];
+        newHistory[currentRound - 1] = outcome;
+        setRoundHistory(newHistory);
+
+        const nawabWins = newHistory.filter(r => r === 'nawab').length;
+        const eicWins = newHistory.filter(r => r === 'eic').length;
+
+        if (nawabWins === 3) {
+          setPhase('identify_mir_madan');
+          const mirJafar = players.find(p => p.role === 'Mir Jafar');
+          setHotseatActivePlayerIndex(players.findIndex(p => p.id === mirJafar?.id));
+          setTransitionScreen(true);
+        } else if (eicWins === 3) {
+          setWinner('eic', '3_missions_failed');
+        } else {
+          setCurrentRound(currentRound + 1);
+          const leaderIndex = players.findIndex(p => p.id === leaderId);
+          const nextLeader = players[(leaderIndex + 1) % players.length];
+          setLeaderId(nextLeader.id);
+          setPhase('team_proposal');
+          setHotseatActivePlayerIndex((leaderIndex + 1) % players.length);
+        }
+        setMissionVotes([]);
+      }
+    } else {
+      webRTCManager.sendActionToHost({
+        type: 'continue_phase',
+        senderId: localPlayerId || '',
+        data: {}
+      });
+    }
+  };
+
+  const renderHotseatAirlock = () => {
+    const nextPlayer = players[hotseatActivePlayerIndex];
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center h-full animate-in fade-in duration-300">
+        <div className="w-20 h-20 bg-amber-600/10 rounded-full flex items-center justify-center mb-6 animate-pulse">
+          <span className="text-4xl text-amber-500">🛡️</span>
+        </div>
+        <h2 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Tactical Airlock Activated</h2>
+        <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-6">
+          Pass Device to: <span className="text-amber-500">{nextPlayer?.name}</span>
+        </h3>
+        <p className="text-slate-400 text-sm italic max-w-xs mb-8">
+          Please ensure you are the only one viewing this terminal before proceeding with the next maneuver.
+        </p>
+        <button
+          onClick={() => {
+            hapticImpact(ImpactStyle.Heavy);
+            setTransitionScreen(false);
+          }}
+          className="px-12 py-4 bg-amber-600 text-white font-black rounded-xl uppercase tracking-widest shadow-lg hover:shadow-amber-500/20 active:scale-95 transition-all"
+        >
+          I am in Command
+        </button>
+      </div>
+    );
   };
 
   const renderMainStage = () => {
@@ -181,28 +361,26 @@ export const GameBoard: React.FC = () => {
       case 'role_reveal':
         return (
           <div className="flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-700 h-full overflow-y-auto scrollbar-hide">
-            <div className={`w-28 h-28 shrink-0 rounded-full flex items-center justify-center mb-6 border-4 ${
-              localPlayer?.faction === 'nawab' ? 'bg-emerald-600/20 border-emerald-500/50' : 'bg-rose-600/20 border-rose-500/50'
-            }`}>
+            <div className={`w-28 h-28 shrink-0 rounded-full flex items-center justify-center mb-6 border-4 ${localPlayer?.faction === 'nawab' ? 'bg-emerald-600/20 border-emerald-500/50' : 'bg-rose-600/20 border-rose-500/50'
+              }`}>
               <span className="text-4xl">{localPlayer?.faction === 'nawab' ? '🛡️' : '⚔️'}</span>
             </div>
-            
+
             <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black mb-1">Identified As</h3>
-            <h2 className={`text-3xl font-black mb-4 uppercase tracking-tighter ${
-              localPlayer?.faction === 'nawab' ? 'text-emerald-500' : 'text-rose-500'
-            }`}>
+            <h2 className={`text-3xl font-black mb-4 uppercase tracking-tighter ${localPlayer?.faction === 'nawab' ? 'text-emerald-500' : 'text-rose-500'
+              }`}>
               {localPlayer?.role}
             </h2>
-            
+
             <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-xl max-w-md mb-6 shadow-2xl shrink-0">
               <p className="text-slate-400 text-xs sm:text-sm leading-relaxed italic">
-                {localPlayer?.faction === 'nawab' 
+                {localPlayer?.faction === 'nawab'
                   ? "Loyalist to Bengal. Your objective is to ensure the Nawab's forces succeed in three campaigns. Watch out for traitors in the General Staff."
                   : "Collaborator with the EIC. Your objective is to sabotage three campaigns without being exposed. Work with your fellow traitors secretly."}
               </p>
             </div>
 
-            <button 
+            <button
               onClick={() => setPhase('team_proposal')}
               className="px-10 py-3 bg-amber-600 hover:bg-amber-500 text-white font-black rounded-lg uppercase tracking-widest transition-all shadow-lg active:scale-95 shrink-0"
             >
@@ -212,60 +390,56 @@ export const GameBoard: React.FC = () => {
         );
 
       case 'team_proposal':
-        const isLeader = localPlayerId === leaderId;
         return (
           <div className="flex flex-col h-full items-center justify-center p-8 animate-in fade-in slide-in-from-right-8 duration-500">
-             <div className="mb-8 text-center">
-                <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black mb-2">Phase: Team Proposal</h3>
-                <h2 className="text-3xl font-black text-white uppercase tracking-tight">
-                    {isLeader ? "Select Your Expeditionary Force" : `Waiting for ${leader?.name}`}
-                </h2>
-                <div className="mt-2 text-amber-500 font-bold bg-amber-500/10 inline-block px-3 py-1 rounded text-xs border border-amber-500/20">
-                    Required Strength: {teamSize} Commanders
-                </div>
-             </div>
+            <div className="mb-8 text-center">
+              <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black mb-2">Phase: Team Proposal</h3>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tight">
+                {isLeader ? "Select Your Expeditionary Force" : `Waiting for ${leader?.name}`}
+              </h2>
+              <div className="mt-2 text-amber-500 font-bold bg-amber-500/10 inline-block px-3 py-1 rounded text-xs border border-amber-500/20">
+                Required Strength: {teamSize} Commanders
+              </div>
+            </div>
 
-             {isLeader ? (
-                <div className="w-full max-w-lg">
-                    <div className="grid grid-cols-2 gap-3 mb-8">
-                        {players.map(p => (
-                            <button
-                                key={p.id}
-                                onClick={() => togglePlayerSelection(p.id)}
-                                className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                                    selectedTeam.includes(p.id)
-                                        ? 'bg-amber-600 border-amber-400 text-white'
-                                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'
-                                }`}
-                            >
-                                <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${
-                                    selectedTeam.includes(p.id) ? 'bg-white text-amber-600' : 'bg-slate-700'
-                                }`}>
-                                    {p.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="text-xs font-bold truncate">{p.name} {p.id === localPlayerId && "(You)"}</span>
-                            </button>
-                        ))}
-                    </div>
-                    
+            {isLeader ? (
+              <div className="w-full max-w-lg">
+                <div className="grid grid-cols-2 gap-3 mb-8">
+                  {players.map(p => (
                     <button
-                        onClick={handleSubmitTeam}
-                        disabled={selectedTeam.length !== teamSize}
-                        className={`w-full py-4 rounded-xl font-black tracking-widest uppercase transition-all shadow-xl ${
-                            selectedTeam.length === teamSize
-                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
+                      key={p.id}
+                      onClick={() => togglePlayerSelection(p.id)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${selectedTeam.includes(p.id)
+                          ? 'bg-amber-600 border-amber-400 text-white'
+                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'
                         }`}
                     >
-                        Submit Proposal
+                      <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${selectedTeam.includes(p.id) ? 'bg-white text-amber-600' : 'bg-slate-700'
+                        }`}>
+                        {p.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-bold truncate">{p.name} {p.id === localPlayerId && "(You)"}</span>
                     </button>
+                  ))}
                 </div>
-             ) : (
-                <div className="flex flex-col items-center justify-center opacity-40 py-12">
-                    <div className="w-16 h-16 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6"></div>
-                    <p className="text-slate-500 text-sm font-bold tracking-widest uppercase italic">Awaiting Dispatch from High Command...</p>
-                </div>
-             )}
+
+                <button
+                  onClick={handleSubmitTeam}
+                  disabled={selectedTeam.length !== teamSize}
+                  className={`w-full py-4 rounded-xl font-black tracking-widest uppercase transition-all shadow-xl ${selectedTeam.length === teamSize
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
+                    }`}
+                >
+                  Submit Proposal
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center opacity-40 py-12">
+                <div className="w-16 h-16 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6"></div>
+                <p className="text-slate-500 text-sm font-bold tracking-widest uppercase italic">Awaiting Dispatch from High Command...</p>
+              </div>
+            )}
           </div>
         );
 
@@ -274,7 +448,7 @@ export const GameBoard: React.FC = () => {
           <div className="flex flex-col h-full items-center justify-center p-8 text-center animate-in fade-in zoom-in-95 duration-500 overflow-y-auto scrollbar-hide">
             <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black mb-2">Phase: Team Approval</h3>
             <h2 className="text-3xl font-black text-white mb-6 uppercase tracking-tight">The Leader Proposes:</h2>
-            
+
             <div className="flex flex-wrap justify-center gap-4 mb-10">
               {proposedTeam.map((pid: string) => {
                 const p = players.find(player => player.id === pid);
@@ -452,16 +626,16 @@ export const GameBoard: React.FC = () => {
         return (
           <div className="flex flex-col h-full items-center justify-center p-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <h3 className="text-rose-500 uppercase tracking-[0.4em] text-xs font-black mb-4 animate-pulse">Phase: The Hunt for Mir Madan</h3>
-            <h2 className="text-4xl font-black text-white mb-6 text-center">Nawab's Forces Are Broken.</h2>
-            
+            <h2 className="text-4xl font-black text-white mb-6 text-center">The Nawab Is Close To Victory But His Forces Are Broken.</h2>
+
             {isMirJafar ? (
               <div className="w-full max-w-lg text-center">
                 <p className="text-slate-400 mb-8">
-                  Nawab's side has secured three victories. As <strong className="text-rose-500 mx-1">Mir Jafar</strong>, you must assassinate the loyalist general 
-                  <strong className="text-amber-500 mx-1">Mir Madan</strong> 
+                  Nawab's side has secured three victories. As <strong className="text-rose-500 mx-1">Mir Jafar</strong>, you must assassinate the loyalist general
+                  <strong className="text-amber-500 mx-1">Mir Madan</strong>
                   to shatter the Nawab's army and win the game. Select your target.
                 </p>
-                
+
                 <div className="grid grid-cols-2 gap-3 mb-8">
                   {validTargets.map((p: Player) => (
                     <button
@@ -478,13 +652,13 @@ export const GameBoard: React.FC = () => {
                 </div>
               </div>
             ) : (
-               <div className="flex flex-col items-center justify-center opacity-70">
-                  <div className="text-6xl mb-6 animate-pulse drop-shadow-2xl">🗡️</div>
-                  <h3 className="text-xl font-bold text-rose-500 uppercase tracking-widest mb-2">The Traitors Are Plotting</h3>
-                  <p className="text-slate-400 max-w-sm text-center italic">
-                    The Nawab's side won 3 campaigns. The EIC are now hunting for Mir Madan. Remain silent and pray they aim poorly.
-                  </p>
-               </div>
+              <div className="flex flex-col items-center justify-center opacity-70">
+                <div className="text-6xl mb-6 animate-pulse drop-shadow-2xl">🗡️</div>
+                <h3 className="text-xl font-bold text-rose-500 uppercase tracking-widest mb-2">The Traitors Are Plotting</h3>
+                <p className="text-slate-400 max-w-sm text-center italic">
+                  The Nawab's side won 3 campaigns. The EIC are now hunting for Mir Madan. Remain silent and pray they aim poorly.
+                </p>
+              </div>
             )}
           </div>
         );
@@ -493,13 +667,12 @@ export const GameBoard: React.FC = () => {
         return (
           <div className="flex flex-col h-full items-center p-8 overflow-y-auto animate-in fade-in zoom-in-95 duration-1000 scrollbar-hide">
             <h3 className="text-slate-500 uppercase tracking-[0.4em] text-sm font-black mb-2 mt-4">Aftermath of Plassey</h3>
-            
-            <h1 className={`text-6xl font-black uppercase tracking-tighter mb-4 text-center ${
-              winner === 'nawab' ? 'text-emerald-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'text-rose-500 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]'
-            }`}>
+
+            <h1 className={`text-6xl font-black uppercase tracking-tighter mb-4 text-center ${winner === 'nawab' ? 'text-emerald-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'text-rose-500 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]'
+              }`}>
               {winner === 'nawab' ? 'Bengal Prevails' : 'The Company Wins'}
             </h1>
-            
+
             <p className="text-xl text-slate-300 italic mb-10 max-w-lg text-center font-serif">
               {winReason === '3_missions_failed' && "Three campaigns fell to the East India Company's sabotage."}
               {winReason === 'mir_madan_assassinated' && "The loyalist general Mir Madan fell to an assassin's blade, shattering the army's morale."}
@@ -510,20 +683,17 @@ export const GameBoard: React.FC = () => {
               <h4 className="text-slate-500 uppercase tracking-widest text-xs font-bold mb-6 text-center border-b border-slate-800 pb-4">Full Roster Debrief</h4>
               <div className="grid gap-3">
                 {players.map((p: Player) => (
-                  <div key={p.id} className={`flex items-center justify-between p-4 rounded-xl border ${
-                    p.faction === 'nawab' ? 'bg-emerald-900/10 border-emerald-500/20' : 'bg-rose-900/10 border-rose-500/20'
-                  }`}>
+                  <div key={p.id} className={`flex items-center justify-between p-4 rounded-xl border ${p.faction === 'nawab' ? 'bg-emerald-900/10 border-emerald-500/20' : 'bg-rose-900/10 border-rose-500/20'
+                    }`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-black shadow-inner ${
-                        p.faction === 'nawab' ? 'bg-emerald-600/30 text-emerald-400' : 'bg-rose-600/30 text-rose-400'
-                      }`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-black shadow-inner ${p.faction === 'nawab' ? 'bg-emerald-600/30 text-emerald-400' : 'bg-rose-600/30 text-rose-400'
+                        }`}>
                         {p.faction === 'nawab' ? '🛡️' : '⚔️'}
                       </div>
                       <div>
                         <p className="font-bold text-slate-200 text-lg">{p.name}</p>
-                        <p className={`text-xs uppercase tracking-widest font-black ${
-                          p.faction === 'nawab' ? 'text-emerald-500' : 'text-rose-500'
-                        }`}>{p.role}</p>
+                        <p className={`text-xs uppercase tracking-widest font-black ${p.faction === 'nawab' ? 'text-emerald-500' : 'text-rose-500'
+                          }`}>{p.role}</p>
                       </div>
                     </div>
                     {p.id === localPlayerId && (
@@ -556,19 +726,19 @@ export const GameBoard: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-160px)] w-full max-w-7xl gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 pb-12 lg:pb-0">
-      
+
       {/* Sidebar: Players & Chat */}
       <aside className="w-full lg:w-1/3 flex flex-col gap-6 order-2 lg:order-1 h-[70vh] lg:h-full shrink-0 min-h-0 overflow-hidden">
-        
+
         {/* Compact Player List - Capped at 40% to preserve chat space */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0 overflow-y-auto custom-scrollbar" style={{ maxHeight: '40%' }}>
           <div className="flex items-center justify-between mb-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">The General Staff</h4>
-              <div className="flex gap-1">
-                {Array.from({ length: 5 }).map((_: any, i: number) => (
-                    <div key={i} className={`w-2 h-2 rounded-sm ${i < currentRound ? 'bg-amber-600' : 'bg-slate-800'}`}></div>
-                ))}
-              </div>
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">The General Staff</h4>
+            <div className="flex gap-1">
+              {Array.from({ length: 5 }).map((_: any, i: number) => (
+                <div key={i} className={`w-2 h-2 rounded-sm ${i < currentRound ? 'bg-amber-600' : 'bg-slate-800'}`}></div>
+              ))}
+            </div>
           </div>
           <div className="space-y-2">
             {players.map((p: Player) => {
@@ -577,35 +747,32 @@ export const GameBoard: React.FC = () => {
               const isMaskedCommander = identity?.role === 'Mir Madan' && p.id !== localPlayerId && localPlayer?.role === 'Mohonlal';
 
               return (
-              <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors border ${
-                p.id === leaderId ? 'border-amber-500/40 bg-amber-500/5' : 'border-transparent bg-slate-800/30'
-              }`}>
-                <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${
-                  isEIC ? 'bg-rose-600 text-white' : 
-                  isMaskedCommander ? 'bg-emerald-600 text-white animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
-                  identity?.faction === 'nawab' && p.id === localPlayerId ? 'bg-emerald-600 text-white' :
-                  p.id === leaderId ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'
-                }`}>
-                  {p.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex flex-col">
-                    <span className={`text-[11px] font-bold leading-none ${
-                        isEIC ? 'text-rose-400' :
-                        isMaskedCommander ? 'text-emerald-400' :
-                        identity?.faction === 'nawab' && p.id === localPlayerId ? 'text-emerald-400' :
-                        p.id === localPlayerId ? 'text-amber-500' : 'text-slate-300'
+                <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors border ${p.id === leaderId ? 'border-amber-500/40 bg-amber-500/5' : 'border-transparent bg-slate-800/30'
+                  }`}>
+                  <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${isEIC ? 'bg-rose-600 text-white' :
+                      isMaskedCommander ? 'bg-emerald-600 text-white animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
+                        identity?.faction === 'nawab' && p.id === localPlayerId ? 'bg-emerald-600 text-white' :
+                          p.id === leaderId ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'
                     }`}>
-                        {p.name} {p.id === localPlayerId && <span className="text-[8px] ml-1 opacity-50 underline">(YOU)</span>}
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className={`text-[11px] font-bold leading-none ${isEIC ? 'text-rose-400' :
+                        isMaskedCommander ? 'text-emerald-400' :
+                          identity?.faction === 'nawab' && p.id === localPlayerId ? 'text-emerald-400' :
+                            p.id === localPlayerId ? 'text-amber-500' : 'text-slate-300'
+                      }`}>
+                      {p.name} {p.id === localPlayerId && <span className="text-[8px] ml-1 opacity-50 underline">(YOU)</span>}
                     </span>
                     {p.id === leaderId && <span className="text-[8px] text-amber-500/70 font-black uppercase tracking-tighter">Current Leader</span>}
                     {isEIC && p.id !== localPlayerId && <span className="text-[8px] text-rose-500 font-black uppercase tracking-tighter animate-pulse mt-0.5">Known Traitor</span>}
                     {isMaskedCommander && <span className="text-[8px] text-emerald-500 font-black uppercase tracking-tighter mt-0.5">Mir Madan</span>}
-                </div>
-                <div className="ml-auto flex items-center gap-2">
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
                     {p.id === leaderId && <span className="text-amber-500 animate-pulse">⭐</span>}
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></div>
+                  </div>
                 </div>
-              </div>
               );
             })}
           </div>
@@ -622,12 +789,12 @@ export const GameBoard: React.FC = () => {
         <div className="flex-grow bg-slate-900/40 border border-slate-800 rounded-2xl shadow-inner relative overflow-hidden group">
           {/* Subtle noise/texture overlay */}
           <div className="absolute inset-0 opacity-5 pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')]"></div>
-          
+
           {/* Content Area */}
           <div className="absolute inset-0">
-            {renderMainStage()}
+            {showTransitionScreen ? renderHotseatAirlock() : renderMainStage()}
           </div>
-          
+
           {/* Corner accents */}
           <div className="absolute top-4 left-4 w-4 h-4 border-t border-l border-slate-700"></div>
           <div className="absolute top-4 right-4 w-4 h-4 border-t border-r border-slate-700"></div>
@@ -636,72 +803,69 @@ export const GameBoard: React.FC = () => {
         </div>
 
         <div className="h-24 bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
-             <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-lg border flex items-center justify-center ${
-                    localPlayer?.faction === 'nawab' ? 'bg-emerald-600/20 border-emerald-500/20' : 'bg-rose-600/20 border-rose-500/20'
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-lg border flex items-center justify-center ${localPlayer?.faction === 'nawab' ? 'bg-emerald-600/20 border-emerald-500/20' : 'bg-rose-600/20 border-rose-500/20'
+              }`}>
+              <span className="text-lg">{localPlayer?.faction === 'nawab' ? '🛡️' : '⚔️'}</span>
+            </div>
+            <div>
+              <h5 className="text-white text-sm font-bold uppercase tracking-tight">{localPlayer?.role}</h5>
+              <p className={`text-[10px] uppercase tracking-wider font-black ${localPlayer?.faction === 'nawab' ? 'text-emerald-500' : 'text-rose-500'
                 }`}>
-                    <span className="text-lg">{localPlayer?.faction === 'nawab' ? '🛡️' : '⚔️'}</span>
-                </div>
-                <div>
-                    <h5 className="text-white text-sm font-bold uppercase tracking-tight">{localPlayer?.role}</h5>
-                    <p className={`text-[10px] uppercase tracking-wider font-black ${
-                        localPlayer?.faction === 'nawab' ? 'text-emerald-500' : 'text-rose-500'
-                    }`}>
-                        {localPlayer?.faction === 'nawab' ? 'Loyalist Agent' : 'Company Saboteur'}
-                    </p>
-                </div>
-             </div>
-              <div className="flex items-center gap-3">
-                 {isHost && phase !== 'game_over' && (
-                    <button 
-                      onClick={() => setShowResetConfirm(true)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
-                    >
-                      <span>🔄</span> Reset to Lobby
-                    </button>
-                 )}
-                 <div className="text-right mr-2">
-                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">Mission Progress</p>
-                    <div className="flex gap-1 justify-end">
-                         {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
-                             <div key={i} className={`w-3 h-1.5 rounded-full border ${
-                                 result === 'pending' ? 'bg-slate-800 border-slate-700' :
-                                 result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                                 'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                             }`}></div>
-                         ))}
-                     </div>
-                </div>
-             </div>
+                {localPlayer?.faction === 'nawab' ? 'Loyalist Agent' : 'Company Saboteur'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {isHost && phase !== 'game_over' && (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+              >
+                <span>🔄</span> Reset to Lobby
+              </button>
+            )}
+            <div className="text-right mr-2">
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">Mission Progress</p>
+              <div className="flex gap-1 justify-end">
+                {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
+                  <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :
+                      result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                        'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                    }`}></div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl text-center animate-in zoom-in-95 duration-500">
-              <div className="w-16 h-16 bg-rose-600/20 border-2 border-rose-500 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">
-                 ⚠️
-              </div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-4">Tactical Reset?</h2>
-              <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                 Are you sure you want to end this campaign early and return to the lobby? All current progress will be lost, but players will remain connected.
-              </p>
-              <div className="flex gap-4">
-                 <button 
-                    onClick={() => setShowResetConfirm(false)}
-                    className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl uppercase tracking-widest text-xs hover:bg-slate-700 transition-all"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                    onClick={handleConfirmReset}
-                    className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-500 transition-all shadow-lg"
-                 >
-                    Confirm Reset
-                 </button>
-              </div>
-           </div>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl text-center animate-in zoom-in-95 duration-500">
+            <div className="w-16 h-16 bg-rose-600/20 border-2 border-rose-500 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">
+              ⚠️
+            </div>
+            <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-4">Tactical Reset?</h2>
+            <p className="text-slate-400 text-sm leading-relaxed mb-8">
+              Are you sure you want to end this campaign early and return to the lobby? All current progress will be lost, but players will remain connected.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl uppercase tracking-widest text-xs hover:bg-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmReset}
+                className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-500 transition-all shadow-lg"
+              >
+                Confirm Reset
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

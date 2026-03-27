@@ -7,14 +7,20 @@ interface GameStore extends GameState {
   playerName: string | null;
   isHost: boolean;
   setLobbyId: (id: string) => void;
-  setStatus: (status: 'menu' | 'lobby' | 'in_progress') => void;
+  setStatus: (status: GameState['status']) => void;
   setPhase: (phase: GameState['phase']) => void;
   updatePlayers: (players: Player[]) => void;
   isLanMode: boolean;
   lanHostIp: string;
   setLanMode: (isLan: boolean, hostIp: string) => void;
   isAdvancedMode: boolean;
+  isHotseatMode: boolean;
+  hotseatActivePlayerIndex: number;
+  showTransitionScreen: boolean;
   toggleAdvancedMode: () => void;
+  setHotseatMode: (active: boolean) => void;
+  setHotseatActivePlayerIndex: (index: number) => void;
+  setTransitionScreen: (show: boolean) => void;
   returnToQuarters: () => void;
   setLocalPlayerId: (id: string) => void;
   setPlayerName: (name: string) => void;
@@ -31,6 +37,13 @@ interface GameStore extends GameState {
   volume: number;
   setMuted: (muted: boolean) => void;
   setVolume: (volume: number) => void;
+  setTeamVotes: (votes: Record<string, 'approve' | 'reject'>) => void;
+  setMissionVotes: (votes: ('support' | 'sabotage')[]) => void;
+  setPendingVoters: (ids: string[]) => void;
+  setRoundHistory: (history: GameState['roundHistory']) => void;
+  setLastTeamVoteResult: (result: GameState['lastTeamVoteResult']) => void;
+  setLastMissionVoteResult: (result: GameState['lastMissionVoteResult']) => void;
+  setWinner: (winner: GameState['winner'], reason: GameState['winReason']) => void;
 }
 
 const initialState = {
@@ -57,6 +70,9 @@ const initialState = {
   isMuted: false,
   volume: 0.5,
   isAdvancedMode: false,
+  isHotseatMode: false,
+  hotseatActivePlayerIndex: 0,
+  showTransitionScreen: false,
 };
 
 export const useGameStore = create<GameStore>()(
@@ -77,8 +93,12 @@ export const useGameStore = create<GameStore>()(
       setCurrentRound: (round: number) => set({ currentRound: round }),
       setProposedTeam: (team: string[]) => set({ proposedTeam: team }),
       toggleAdvancedMode: () => set((state) => ({ isAdvancedMode: !state.isAdvancedMode })),
+      setHotseatMode: (active) => set({ isHotseatMode: active }),
+      setHotseatActivePlayerIndex: (index) => set({ hotseatActivePlayerIndex: index }),
+      setTransitionScreen: (show) => set({ showTransitionScreen: show }),
       returnToQuarters: () => set((state) => ({
         ...state,
+        status: 'lobby',
         phase: 'lobby',
         currentRound: 1,
         failedProposals: 0,
@@ -105,6 +125,13 @@ export const useGameStore = create<GameStore>()(
       })),
       setMuted: (isMuted) => set({ isMuted }),
       setVolume: (volume) => set({ volume }),
+      setTeamVotes: (teamVotes) => set({ teamVotes }),
+      setMissionVotes: (missionVotes) => set({ missionVotes }),
+      setPendingVoters: (pendingVoters) => set({ pendingVoters }),
+      setRoundHistory: (roundHistory) => set({ roundHistory }),
+      setLastTeamVoteResult: (lastTeamVoteResult) => set({ lastTeamVoteResult }),
+      setLastMissionVoteResult: (lastMissionVoteResult) => set({ lastMissionVoteResult }),
+      setWinner: (winner, winReason) => set({ winner, winReason, phase: 'game_over' }),
     }),
     {
       name: 'plassey-game-session',

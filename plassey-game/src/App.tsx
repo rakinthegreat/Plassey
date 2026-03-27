@@ -6,6 +6,8 @@ import { GameBoard } from './components/GameBoard';
 import { webRTCManager } from './lib/WebRTCManager';
 import { AudioController } from './components/AudioController';
 import { AudioToggle } from './components/AudioToggle';
+import { HotseatSetup } from './components/HotseatSetup';
+import { HotseatReveal } from './components/HotseatReveal';
 
 function App() {
   const [showRules, setShowRules] = useState(false);
@@ -43,6 +45,8 @@ function App() {
 
   const renderContent = () => {
     if (status === 'menu') return <MainMenu />;
+    if (status === 'hotseat_setup') return <HotseatSetup />;
+    if (status === 'hotseat_reveal') return <HotseatReveal />;
     if (status === 'lobby') return <Lobby />;
     if (status === 'in_progress') return <GameBoard />;
     return null;
