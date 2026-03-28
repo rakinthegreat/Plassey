@@ -240,7 +240,7 @@ function App() {
                       github.com/rakinthegreat
                     </a>
                   </div>
-                  <p className="italic text-slate-400">A personal project developed independently with the assistance of Generative AI.</p>
+                  <p className="italic text-slate-400">A personal project developed independently with some generative assistance.</p>
                   <p>This digital adaptation was built specifically to solve the challenge of distance—designed for remote play so friends can enjoy the thrill of the game anywhere, anytime, right from their phone or browser.</p>
                 </div>
               </section>
