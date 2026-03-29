@@ -40,6 +40,9 @@ public class MainActivity extends BridgeActivity {
          * checkBatteryOptimization();
          * }
          */
+        // Check for updates in background
+        Updater.checkForUpdates(this);
+        
         checkBatteryOptimization();
     }
 

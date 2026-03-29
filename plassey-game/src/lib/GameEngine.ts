@@ -49,17 +49,20 @@ export const GameEngine = {
       }
     } else {
       // Standard Mode
-      const mandatoryGreen = { role: 'Mir Madan', faction: 'nawab' as const };
+      const mandatoryGreens = [
+        { role: 'Mir Madan', faction: 'nawab' as const },
+        { role: 'Nawab Siraj-ud-Dawlah', faction: 'nawab' as const }
+      ];
       const mandatoryRed = { role: 'Mir Jafar', faction: 'eic' as const };
 
-      const greenPool = ['Nawab Siraj-ud-Dawlah', 'Lutfunnisa Begum', 'Mohonlal', 'St. Frais', 'Khwaja Hadi Khan'];
+      const greenPool = ['Lutfunnisa Begum', 'Mohonlal', 'St. Frais', 'Khwaja Hadi Khan'];
       const redPool = ['Ray Durlabh', 'Ghaseti Begum', 'Omichand'];
 
       const shuffledGreen = shuffle(greenPool);
       const shuffledRed = shuffle(redPool);
 
-      selectedGreens = [mandatoryGreen, ...shuffledGreen.slice(0, greenCount - 1).map(r => ({ role: r, faction: 'nawab' as const }))];
-      selectedReds = [mandatoryRed, ...shuffledRed.slice(0, redCount - 1).map(r => ({ role: r, faction: 'eic' as const }))];
+      selectedGreens = [...mandatoryGreens, ...shuffledGreen.map(r => ({ role: r, faction: 'nawab' as const }))].slice(0, greenCount);
+      selectedReds = [mandatoryRed, ...shuffledRed.map(r => ({ role: r, faction: 'eic' as const }))].slice(0, redCount);
     }
 
     const finalRoster = shuffle([...selectedGreens, ...selectedReds]);
