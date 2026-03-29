@@ -1,5 +1,20 @@
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8081 });
+const http = require('http');
+
+const PORT = process.env.PORT || 8081;
+
+// Create HTTP server for health checks
+const server = http.createServer((req, res) => {
+  if (req.method === 'GET' && req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Polashi Server is awake and ready for battle!');
+    return;
+  }
+  res.writeHead(404);
+  res.end();
+});
+
+const wss = new WebSocket.Server({ server });
 
 const hosts = new Map(); // roomCode -> ws
 const clients = new Map(); // clientId -> ws
@@ -84,4 +99,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-console.log('Signaling server running on ws://localhost:8081');
+server.listen(PORT, () => {
+  console.log(`Signaling server running on port ${PORT}`);
+});
