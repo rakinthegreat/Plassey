@@ -5,9 +5,13 @@ const PORT = process.env.PORT || 8081;
 
 // Create HTTP server for health checks
 const server = http.createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/') {
+  if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Polashi Server is awake and ready for battle!');
+    if (req.method === 'GET') {
+      res.end('Plassey Server is awake and ready for battle!');
+    } else {
+      res.end(); // HEAD requests must not return a body
+    }
     return;
   }
   res.writeHead(404);
