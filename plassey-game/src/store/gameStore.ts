@@ -134,12 +134,13 @@ export const useGameStore = create<GameStore>()(
       setWinner: (winner, winReason) => set({ winner, winReason, phase: 'game_over' }),
     }),
     {
-      name: 'plassey-game-session',
+      name: 'plassey-battle-session',
       storage: createJSONStorage(() => {
-        // Use localStorage for native apps (Android/iOS) to persist sound/settings
-        // Use localStorage for native apps (Android/iOS) to persist sound/settings
-        // Use sessionStorage for browsers to keep sessions tab-specific
-        const isNative = (window as any).Capacitor?.isNativePlatform === true || !!(window as any).cordova;
+        // Strictly use sessionStorage for browsers to allow multiple tabs/players on one machine
+        // Use localStorage ONLY for native Android/iOS apps for persistence across reboots
+        const isNative = typeof window !== 'undefined' && 
+          ((window as any).Capacitor?.isNativePlatform === true || !!(window as any).cordova);
+        
         return isNative ? localStorage : sessionStorage;
       }),
       // Only persist critical info for rejoining
