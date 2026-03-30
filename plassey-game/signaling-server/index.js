@@ -109,10 +109,10 @@ wss.on('connection', (ws) => {
     if (isHost && roomId) {
       const existing = hosts.get(roomId);
       if (existing && existing.ws === ws) {
-        // Start Reconnection Window (60 seconds)
-        console.log(`[TIMEOUT] Host left room: ${roomId}. Starting 60s reconnection window...`);
+        // Start Reconnection Window (15 seconds)
+        console.log(`[TIMEOUT] Host left room: ${roomId}. Starting 15s reconnection window...`);
         const timeoutId = setTimeout(() => {
-          console.log(`[DISSOLUTION] 60s expired. Dissolving room ${roomId}.`);
+          console.log(`[DISSOLUTION] 15s expired. Dissolving room ${roomId}.`);
           // Notify ALL clients in this room
           wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN && client.roomId === roomId && client !== ws) {
@@ -121,7 +121,7 @@ wss.on('connection', (ws) => {
           });
           hosts.delete(roomId);
           roomTimeouts.delete(roomId);
-        }, 60000);
+        }, 15000);
         roomTimeouts.set(roomId, timeoutId);
       }
     } else if (clientId && roomId) {
