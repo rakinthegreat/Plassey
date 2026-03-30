@@ -896,9 +896,9 @@ export const GameBoard: React.FC = () => {
           <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-slate-700"></div>
         </div>
 
-        <div className="h-24 bg-slate-900/60 border border-slate-800 rounded-xl p-4 grid grid-cols-3 items-center shadow-xl">
+        <div className="h-24 bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
           {/* Left: Player Identity */}
-          <div className="flex items-center gap-4 justify-self-start">
+          <div className="flex items-center gap-4">
             {!isHotseatMode ? (
               <>
                 <div className={`w-12 h-12 rounded-lg border flex items-center justify-center ${localPlayer?.faction === 'nawab' ? 'bg-emerald-600/20 border-emerald-500/20' : 'bg-rose-600/20 border-rose-500/20'}`}>
@@ -924,20 +924,18 @@ export const GameBoard: React.FC = () => {
             )}
           </div>
 
-          {/* Center: Tactical Actions */}
-          <div className="justify-self-center">
-            {isHost && !isHotseatMode && phase !== 'game_over' && (
-              <button
-                onClick={() => setShowResetConfirm(true)}
-                className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-3 shadow-lg"
-              >
-                <span className="text-xs">☢️</span> <span>Reset to Lobby</span>
-              </button>
-            )}
-          </div>
+          {/* Center: Tactical Actions (Equidistant) */}
+          {isHost && !isHotseatMode && phase !== 'game_over' && (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-3 shadow-lg"
+            >
+              <span className="text-xs">☢️</span> <span>Reset to Lobby</span>
+            </button>
+          )}
 
           {/* Right: Mission Intelligence */}
-          <div className="justify-self-end text-right mr-2">
+          <div className="text-right mr-2">
             <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">
               {lobbyId && <span className="text-amber-500/60 mr-2">[{lobbyId.toUpperCase()}]</span>} Mission Progress
             </p>
