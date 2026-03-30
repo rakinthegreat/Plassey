@@ -42,7 +42,7 @@ export const GameBoard: React.FC = () => {
   const activePlayer = isHotseatMode && players.length > 0 ? players[hotseatActivePlayerIndex] : players.find(p => p.id === localPlayerId);
   const localPlayer = players.find(p => p.id === localPlayerId);
   const leader = players.find(p => p.id === leaderId);
-  
+
   const isHost = isHotseatMode ? activePlayer?.isHost : localPlayer?.isHost;
   const teamSize = GameEngine.getTeamSize(players.length, currentRound);
   const isOnTeam = activePlayer ? proposedTeam.includes(activePlayer.id) : false;
@@ -59,10 +59,10 @@ export const GameBoard: React.FC = () => {
   useEffect(() => {
     if (isHotseatMode && (phase === 'team_proposal' || phase === 'team_voting' || phase === 'mission_voting' || phase === 'identify_mir_madan')) {
       if (!showTransitionScreen && hotseatActivePlayerIndex === 0 && !hasVotedTeam) {
-          // This might be too aggressive, need to be careful with initialization
+        // This might be too aggressive, need to be careful with initialization
       }
     }
-    
+
     if (phase === 'team_vote_reveal' || phase === 'mission_vote_reveal') {
       setRevealCountdown(10);
       const timer = setInterval(() => {
@@ -80,14 +80,14 @@ export const GameBoard: React.FC = () => {
       return () => clearInterval(timer);
     }
   }, [phase, localPlayer?.isHost]);
-  
+
   // Sync active player to first team member when mission starts in Hotseat
   useEffect(() => {
     if (isHotseatMode && phase === 'mission_voting' && missionVotes.length === 0) {
       const firstMissionPlayerIndex = players.findIndex(p => proposedTeam.includes(p.id));
       if (firstMissionPlayerIndex !== -1 && hotseatActivePlayerIndex !== firstMissionPlayerIndex) {
-         setHotseatActivePlayerIndex(firstMissionPlayerIndex);
-         setTransitionScreen(true);
+        setHotseatActivePlayerIndex(firstMissionPlayerIndex);
+        setTransitionScreen(true);
       }
     }
   }, [phase, proposedTeam, isHotseatMode, missionVotes.length]);
@@ -97,8 +97,8 @@ export const GameBoard: React.FC = () => {
     if (isHotseatMode && phase === 'team_proposal') {
       const leaderIndex = players.findIndex(p => p.id === leaderId);
       if (leaderIndex !== -1 && hotseatActivePlayerIndex !== leaderIndex) {
-         setHotseatActivePlayerIndex(leaderIndex);
-         setTransitionScreen(true);
+        setHotseatActivePlayerIndex(leaderIndex);
+        setTransitionScreen(true);
       }
     }
   }, [phase, leaderId, isHotseatMode, players.length]);
@@ -108,33 +108,33 @@ export const GameBoard: React.FC = () => {
     if (isHotseatMode && phase === 'identify_mir_madan') {
       const mirJafarIndex = players.findIndex(p => p.role === 'Mir Jafar');
       if (mirJafarIndex !== -1 && hotseatActivePlayerIndex !== mirJafarIndex) {
-         setHotseatActivePlayerIndex(mirJafarIndex);
-         setTransitionScreen(true);
+        setHotseatActivePlayerIndex(mirJafarIndex);
+        setTransitionScreen(true);
       }
     }
   }, [phase, isHotseatMode, players.length]);
 
   // Mission Voting Safety Net - Force transition if list is empty
   useEffect(() => {
-     if (isHotseatMode && phase === 'mission_voting' && pendingVoters.length === 0) {
-        // Only trigger if we actually have votes to reveal
-        if (missionVotes.length > 0) {
-            const currentRoundVotes = missionVotes;
-            const sabotages = currentRoundVotes.filter(v => v === 'sabotage').length;
-            const required = (players.length >= 7 && currentRound === 4) ? 2 : 1;
-            
-            setMasterState({
-               lastMissionVoteResult: { 
-                 support: currentRoundVotes.length - sabotages, 
-                 sabotage: sabotages, 
-                 passed: sabotages < required 
-               },
-               phase: 'mission_vote_reveal',
-               hotseatActivePlayerIndex: 0,
-               showTransitionScreen: false
-            });
-        }
-     }
+    if (isHotseatMode && phase === 'mission_voting' && pendingVoters.length === 0) {
+      // Only trigger if we actually have votes to reveal
+      if (missionVotes.length > 0) {
+        const currentRoundVotes = missionVotes;
+        const sabotages = currentRoundVotes.filter(v => v === 'sabotage').length;
+        const required = (players.length >= 7 && currentRound === 4) ? 2 : 1;
+
+        setMasterState({
+          lastMissionVoteResult: {
+            support: currentRoundVotes.length - sabotages,
+            sabotage: sabotages,
+            passed: sabotages < required
+          },
+          phase: 'mission_vote_reveal',
+          hotseatActivePlayerIndex: 0,
+          showTransitionScreen: false
+        });
+      }
+    }
   }, [phase, pendingVoters.length, isHotseatMode, missionVotes.length]);
 
   const getVisibleIdentity = (viewer: Player | undefined, target: Player) => {
@@ -251,10 +251,10 @@ export const GameBoard: React.FC = () => {
         const nextVoterId = nextPendingIdentities[0];
         const nextIdx = players.findIndex(p => p.id === nextVoterId);
         setMasterState({
-           pendingVoters: nextPendingIdentities,
-           missionVotes: currentVotes as any,
-           hotseatActivePlayerIndex: nextIdx,
-           showTransitionScreen: true
+          pendingVoters: nextPendingIdentities,
+          missionVotes: currentVotes as any,
+          hotseatActivePlayerIndex: nextIdx,
+          showTransitionScreen: true
         });
       } else {
         const sabotages = currentVotes.filter(v => v === 'sabotage').length;
@@ -262,12 +262,12 @@ export const GameBoard: React.FC = () => {
         const passed = sabotages < requiredSabotages;
 
         setMasterState({
-           pendingVoters: [],
-           missionVotes: currentVotes as any,
-           lastMissionVoteResult: { support: currentVotes.length - sabotages, sabotage: sabotages, passed },
-           phase: 'mission_vote_reveal',
-           hotseatActivePlayerIndex: 0,
-           showTransitionScreen: false
+          pendingVoters: [],
+          missionVotes: currentVotes as any,
+          lastMissionVoteResult: { support: currentVotes.length - sabotages, sabotage: sabotages, passed },
+          phase: 'mission_vote_reveal',
+          hotseatActivePlayerIndex: 0,
+          showTransitionScreen: false
         });
       }
     } else {
@@ -323,25 +323,25 @@ export const GameBoard: React.FC = () => {
   const handleConfirmReset = () => {
     if (!isHost && !isHotseatMode) return;
     returnToQuarters();
-    
+
     if (!isHotseatMode) {
       webRTCManager.broadcastState({
-      phase: 'lobby',
-      status: 'lobby',
-      players: players.map(p => ({ ...p, role: undefined, faction: undefined })),
-      currentRound: 1,
-      failedProposals: 0,
-      leaderId: players[0]?.id || null,
-      proposedTeam: [],
-      teamVotes: {},
-      missionVotes: [],
-      roundHistory: ['pending', 'pending', 'pending', 'pending', 'pending'],
-      pendingVoters: [],
-      lastTeamVoteResult: null,
-      lastMissionVoteResult: null,
-      winner: undefined,
-      winReason: undefined
-    });
+        phase: 'lobby',
+        status: 'lobby',
+        players: players.map(p => ({ ...p, role: undefined, faction: undefined })),
+        currentRound: 1,
+        failedProposals: 0,
+        leaderId: players[0]?.id || null,
+        proposedTeam: [],
+        teamVotes: {},
+        missionVotes: [],
+        roundHistory: ['pending', 'pending', 'pending', 'pending', 'pending'],
+        pendingVoters: [],
+        lastTeamVoteResult: null,
+        lastMissionVoteResult: null,
+        winner: undefined,
+        winReason: undefined
+      });
     }
     setShowResetConfirm(false);
   };
@@ -490,8 +490,8 @@ export const GameBoard: React.FC = () => {
                       key={p.id}
                       onClick={() => togglePlayerSelection(p.id)}
                       className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${selectedTeam.includes(p.id)
-                          ? 'bg-amber-600 border-amber-400 text-white'
-                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'
+                        ? 'bg-amber-600 border-amber-400 text-white'
+                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-500'
                         }`}
                     >
                       <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${selectedTeam.includes(p.id) ? 'bg-white text-amber-600' : 'bg-slate-700'
@@ -507,8 +507,8 @@ export const GameBoard: React.FC = () => {
                   onClick={handleSubmitTeam}
                   disabled={selectedTeam.length !== teamSize}
                   className={`w-full py-4 rounded-xl font-black tracking-widest uppercase transition-all shadow-xl ${selectedTeam.length === teamSize
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
                     }`}
                 >
                   Submit Proposal
@@ -811,60 +811,60 @@ export const GameBoard: React.FC = () => {
       {!isHotseatMode && (
         <aside className="w-full lg:w-1/3 flex flex-col gap-6 order-2 lg:order-1 h-[70vh] lg:h-full shrink-0 min-h-0 overflow-hidden">
 
-        {/* Compact Player List - Capped at 40% to preserve chat space */}
-        <div className={`bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0 overflow-y-auto custom-scrollbar ${isHotseatMode ? 'h-full' : 'max-h-[40%]'}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">The General Staff</h4>
-            <div className="flex gap-1">
-              {Array.from({ length: 5 }).map((_: any, i: number) => (
-                <div key={i} className={`w-2 h-2 rounded-sm ${i < currentRound ? 'bg-amber-600' : 'bg-slate-800'}`}></div>
-              ))}
+          {/* Compact Player List - Capped at 40% to preserve chat space */}
+          <div className={`bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0 overflow-y-auto custom-scrollbar ${isHotseatMode ? 'h-full' : 'max-h-[40%]'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">The General Staff</h4>
+              <div className="flex gap-1">
+                {Array.from({ length: 5 }).map((_: any, i: number) => (
+                  <div key={i} className={`w-2 h-2 rounded-sm ${i < currentRound ? 'bg-amber-600' : 'bg-slate-800'}`}></div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="space-y-2">
-            {players.map((p: Player) => {
-              const identity = getVisibleIdentity(localPlayer, p);
-              const isEIC = identity?.faction === 'eic';
-              const isMaskedCommander = identity?.role === 'Mir Madan' && p.id !== localPlayerId && localPlayer?.role === 'Mohonlal';
+            <div className="space-y-2">
+              {players.map((p: Player) => {
+                const identity = getVisibleIdentity(localPlayer, p);
+                const isEIC = identity?.faction === 'eic';
+                const isMaskedCommander = identity?.role === 'Mir Madan' && p.id !== localPlayerId && localPlayer?.role === 'Mohonlal';
 
-              return (
-                <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors border ${p.id === leaderId ? 'border-amber-500/40 bg-amber-500/5' : 'border-transparent bg-slate-800/30'
-                  }`}>
-                  <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${isEIC ? 'bg-rose-600 text-white' :
+                return (
+                  <div key={p.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors border ${p.id === leaderId ? 'border-amber-500/40 bg-amber-500/5' : 'border-transparent bg-slate-800/30'
+                    }`}>
+                    <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${isEIC ? 'bg-rose-600 text-white' :
                       isMaskedCommander ? 'bg-emerald-600 text-white animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]' :
                         identity?.faction === 'nawab' && p.id === localPlayerId ? 'bg-emerald-600 text-white' :
                           p.id === leaderId ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-400'
-                    }`}>
-                    {p.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className={`text-[11px] font-bold leading-none ${isEIC ? 'text-rose-400' :
+                      }`}>
+                      {p.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-[11px] font-bold leading-none ${isEIC ? 'text-rose-400' :
                         isMaskedCommander ? 'text-emerald-400' :
                           identity?.faction === 'nawab' && p.id === localPlayerId ? 'text-emerald-400' :
                             p.id === localPlayerId ? 'text-amber-500' : 'text-slate-300'
-                      }`}>
-                      {p.name} {p.id === localPlayerId && <span className="text-[8px] ml-1 opacity-50 underline">(YOU)</span>}
-                    </span>
-                    {p.id === leaderId && <span className="text-[8px] text-amber-500/70 font-black uppercase tracking-tighter">Current Leader</span>}
-                    {isEIC && p.id !== localPlayerId && <span className="text-[8px] text-rose-500 font-black uppercase tracking-tighter animate-pulse mt-0.5">Known Traitor</span>}
-                    {isMaskedCommander && <span className="text-[8px] text-emerald-500 font-black uppercase tracking-tighter mt-0.5">Mir Madan</span>}
+                        }`}>
+                        {p.name} {p.id === localPlayerId && <span className="text-[8px] ml-1 opacity-50 underline">(YOU)</span>}
+                      </span>
+                      {p.id === leaderId && <span className="text-[8px] text-amber-500/70 font-black uppercase tracking-tighter">Current Leader</span>}
+                      {isEIC && p.id !== localPlayerId && <span className="text-[8px] text-rose-500 font-black uppercase tracking-tighter animate-pulse mt-0.5">Known Traitor</span>}
+                      {isMaskedCommander && <span className="text-[8px] text-emerald-500 font-black uppercase tracking-tighter mt-0.5">Mir Madan</span>}
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
+                      {p.id === leaderId && <span className="text-amber-500 animate-pulse">⭐</span>}
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></div>
+                    </div>
                   </div>
-                  <div className="ml-auto flex items-center gap-2">
-                    {p.id === leaderId && <span className="text-amber-500 animate-pulse">⭐</span>}
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Chat System - Locked to remaining space */}
-        {!isHotseatMode && (
-          <div className="flex-grow min-h-0 overflow-hidden">
-            <ChatBox />
-          </div>
-        )}
+          {/* Chat System - Locked to remaining space */}
+          {!isHotseatMode && (
+            <div className="flex-grow min-h-0 overflow-hidden">
+              <ChatBox />
+            </div>
+          )}
         </aside>
       )}
 
@@ -878,14 +878,6 @@ export const GameBoard: React.FC = () => {
           <div className="absolute inset-0">
             {showTransitionScreen ? renderHotseatAirlock() : renderMainStage()}
           </div>
-
-          {/* Tactical Link Sync Banner - Hide in Hotseat */}
-          {!isHotseatMode && (
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 px-4 py-1 bg-slate-900/80 border-x border-b border-slate-700/50 rounded-b-lg flex items-center gap-2 z-10">
-              <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500">Tactical Link Sync Active</span>
-            </div>
-          )}
 
           {/* Corner accents */}
           <div className="absolute top-4 left-4 w-4 h-4 border-t border-l border-slate-700"></div>
@@ -934,8 +926,8 @@ export const GameBoard: React.FC = () => {
               <div className="flex gap-1 justify-end">
                 {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
                   <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :
-                      result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                        'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                    result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                      'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
                     }`}></div>
                 ))}
               </div>
@@ -956,27 +948,27 @@ export const GameBoard: React.FC = () => {
               Are you sure you want to end this campaign early and return to the lobby? All current progress will be lost, but players will remain connected.
             </p>
             <div className="flex flex-col gap-3">
-                 <div className="flex gap-4">
-                    <button
-                        onClick={() => setShowResetConfirm(false)}
-                        className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl uppercase tracking-widest text-xs hover:bg-slate-700 transition-all"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleConfirmReset}
-                        className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-500 transition-all shadow-lg"
-                    >
-                        Return to Quarters
-                    </button>
-                 </div>
-                 <button
-                    onClick={handleExitToMenu}
-                    className="w-full py-3 bg-slate-950 border border-slate-700 text-rose-500 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-900/20 transition-all shadow-lg"
-                 >
-                    Abandon Full Campaign (Exit)
-                 </button>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl uppercase tracking-widest text-xs hover:bg-slate-700 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmReset}
+                  className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-500 transition-all shadow-lg"
+                >
+                  Return to Quarters
+                </button>
               </div>
+              <button
+                onClick={handleExitToMenu}
+                className="w-full py-3 bg-slate-950 border border-slate-700 text-rose-500 font-black rounded-xl uppercase tracking-widest text-xs hover:bg-rose-900/20 transition-all shadow-lg"
+              >
+                Abandon Full Campaign (Exit)
+              </button>
+            </div>
           </div>
         </div>
       )}
