@@ -12,6 +12,24 @@ export class WebRTCManager {
   private localPlayerId: string | null = null;
   private customWsUrl: string | null = null;
 
+  public close() {
+    console.log("[WEBRTC] Incinerating all tactical links...");
+    this.peerConnections.forEach(pc => pc.close());
+    this.peerConnections.clear();
+    this.dataChannels.clear();
+    if (this.clientPeerConnection) this.clientPeerConnection.close();
+    this.clientPeerConnection = null;
+    this.clientDataChannel = null;
+    
+    if (this.ws) {
+      // Remove listeners to prevent close firing logic
+      this.ws.onclose = null;
+      this.ws.close();
+      this.ws = null;
+    }
+    useGameStore.getState().setNetworkStatus('none');
+  }
+
   // Host state
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private dataChannels: Map<string, RTCDataChannel> = new Map();
@@ -118,6 +136,13 @@ export class WebRTCManager {
       } else {
         alert(`Tactical Error: ${msg.message}`);
       }
+      return;
+    }
+
+    if (msg.type === 'promote_to_host') {
+      console.log(`[PROMOTION] Battlefield Command restored for ${msg.roomCode}`);
+      this.isHost = true;
+      useGameStore.getState().setIsHost(true);
       return;
     }
 

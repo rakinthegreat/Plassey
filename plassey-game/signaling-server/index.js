@@ -75,7 +75,14 @@ wss.on('connection', (ws) => {
       roomId = actualRoom;
       
       const hostEntry = hosts.get(actualRoom);
-      if (hostEntry && hostEntry.ws.readyState === WebSocket.OPEN) {
+      
+      // HOST RECLAMATION: If this user was the original host, promote them back!
+      if (hostEntry && hostEntry.hostId === actualSender) {
+        console.log(`[PROMOTION] Original Host ${actualSender} re-joined room ${actualRoom}. Restoring command.`);
+        isHost = true;
+        hosts.set(actualRoom, { ws, hostId: actualSender });
+        ws.send(JSON.stringify({ type: 'promote_to_host', roomCode: actualRoom }));
+      } else if (hostEntry && hostEntry.ws.readyState === WebSocket.OPEN) {
         hostEntry.ws.send(JSON.stringify({ type: 'client_join', sender: actualSender }));
         console.log(`Client ${actualSender} joined room ${actualRoom}`);
       }

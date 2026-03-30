@@ -12,6 +12,7 @@ export const GameBoard: React.FC = () => {
     localPlayerId,
     phase,
     leaderId,
+    lobbyId,
     currentRound,
     setPhase,
     proposedTeam,
@@ -313,7 +314,8 @@ export const GameBoard: React.FC = () => {
 
   const handleExitToMenu = () => {
     resetSession();
-    setStatus('menu');
+    webRTCManager.close(); // Critical: Kill all WebRTC ghosts
+    window.location.reload(); // Perform hard-reset like a refresh
   };
 
   const hapticImpact = async (style: ImpactStyle = ImpactStyle.Medium) => {
@@ -922,7 +924,9 @@ export const GameBoard: React.FC = () => {
               </button>
             )}
             <div className="text-right mr-2">
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">Mission Progress</p>
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">
+                Mission Progress {lobbyId && <span className="text-amber-500/60 ml-2">[{lobbyId.toUpperCase()}]</span>}
+              </p>
               <div className="flex gap-1 justify-end">
                 {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
                   <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :

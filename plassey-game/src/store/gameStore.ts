@@ -122,6 +122,8 @@ export const useGameStore = create<GameStore>()(
       }),
       resetSession: () => set((state) => ({ 
         ...initialState, 
+        localPlayerId: state.localPlayerId,
+        playerName: state.playerName,
         isMuted: state.isMuted, 
         volume: state.volume 
       })),
