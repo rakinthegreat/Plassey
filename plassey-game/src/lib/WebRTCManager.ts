@@ -142,9 +142,16 @@ export class WebRTCManager {
             this.pendingCandidates[peerId].push(candidate);
           }
         }
+      } else if (msg.type === 'client_leave') {
+        await this.handleClientLeave(msg.sender);
       }
     } else {
-      if (msg.type === 'offer') {
+      if (msg.type === 'host_leave') {
+        console.log("[DISSOLUTION] The Commanding Officer has retreated. Room dissolved.");
+        alert("The Commanding Officer has retreated. Campaign dissolved.");
+        useGameStore.getState().resetSession();
+        window.location.reload();
+      } else if (msg.type === 'offer') {
         await this.handleOffer(msg.payload);
       } else if (msg.type === 'ice_candidate') {
         const pc = this.clientPeerConnection;
@@ -206,6 +213,35 @@ export class WebRTCManager {
 
     useGameStore.getState().setLobbyId(roomCode);
     console.log(`Host peer globally initialized for room ${roomCode}`);
+  }
+  
+  private async handleClientLeave(clientId: string) {
+    if (!this.isHost) return;
+    console.log(`[SIGNALING] Client ${clientId} has vacated the field.`);
+    
+    // Clean up WebRTC resources
+    const pc = this.peerConnections.get(clientId);
+    if (pc) pc.close();
+    this.peerConnections.delete(clientId);
+    this.dataChannels.delete(clientId);
+    
+    const store = useGameStore.getState();
+    const existingPlayer = store.players.find(p => p.id === clientId);
+    if (!existingPlayer) return;
+
+    let updatedPlayers;
+    if (store.status === 'lobby') {
+      // Remove player entirely
+      updatedPlayers = store.players.filter(p => p.id !== clientId);
+    } else {
+      // Mark as disconnected
+      updatedPlayers = store.players.map(p => 
+        p.id === clientId ? { ...p, connected: false } : p
+      );
+    }
+    
+    store.setMasterState({ players: updatedPlayers });
+    this.broadcastState({ players: updatedPlayers });
   }
 
   private async handleClientJoin(clientId: string) {

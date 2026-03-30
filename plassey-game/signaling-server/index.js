@@ -20,8 +20,9 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server });
 
-const hosts = new Map(); // roomCode -> ws
+const hosts = new Map(); // roomCode -> { ws, hostId }
 const clients = new Map(); // clientId -> ws
+const roomTimeouts = new Map(); // roomCode -> setTimeoutId
 
 wss.on('connection', (ws) => {
   let isHost = false;
@@ -52,6 +53,14 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      // If there was a pending dissolution for this room, cancel it
+      if (roomTimeouts.has(rId)) {
+        console.log(`[RECOVERY] Commanding Officer re-established connection for room ${rId}. Dissolution cancelled.`);
+        clearTimeout(roomTimeouts.get(rId));
+        roomTimeouts.delete(rId);
+      }
+
+      ws.roomId = rId;
       hosts.set(rId, { ws, hostId: hId });
       isHost = true;
       roomId = rId;
@@ -61,6 +70,7 @@ wss.on('connection', (ws) => {
       const actualSender = sender || senderId;
       const actualRoom = room || roomCode;
       clients.set(actualSender, ws);
+      ws.roomId = actualRoom;
       clientId = actualSender;
       roomId = actualRoom;
       
@@ -91,14 +101,29 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (isHost && roomId) {
       const existing = hosts.get(roomId);
-      // Only delete if THIS socket is the one registered
       if (existing && existing.ws === ws) {
-        hosts.delete(roomId);
-        console.log(`Host disconnected from room: ${roomId}`);
+        // Start Reconnection Window (60 seconds)
+        console.log(`[TIMEOUT] Host left room: ${roomId}. Starting 60s reconnection window...`);
+        const timeoutId = setTimeout(() => {
+          console.log(`[DISSOLUTION] 60s expired. Dissolving room ${roomId}.`);
+          // Notify ALL clients in this room
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN && client.roomId === roomId && client !== ws) {
+              client.send(JSON.stringify({ type: 'host_leave', roomCode: roomId }));
+            }
+          });
+          hosts.delete(roomId);
+          roomTimeouts.delete(roomId);
+        }, 60000);
+        roomTimeouts.set(roomId, timeoutId);
       }
-    } else if (clientId) {
+    } else if (clientId && roomId) {
       clients.delete(clientId);
       console.log(`Client disconnected: ${clientId}`);
+      const hostEntry = hosts.get(roomId);
+      if (hostEntry && hostEntry.ws.readyState === WebSocket.OPEN) {
+        hostEntry.ws.send(JSON.stringify({ type: 'client_leave', sender: clientId }));
+      }
     }
   });
 });
