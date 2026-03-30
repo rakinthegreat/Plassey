@@ -12,6 +12,10 @@ export class WebRTCManager {
   private localPlayerId: string | null = null;
   private customWsUrl: string | null = null;
 
+  public getDataChannel(clientId: string): RTCDataChannel | undefined {
+    return this.dataChannels.get(clientId);
+  }
+
   public close() {
     console.log("[WEBRTC] Incinerating all tactical links...");
     this.peerConnections.forEach(pc => pc.close());
@@ -242,6 +246,14 @@ export class WebRTCManager {
   
   private async handleClientLeave(clientId: string) {
     if (!this.isHost) return;
+    
+    // GRACEFUL CONNECTIVITY: Check if WebRTC DataChannel is still open
+    const dc = this.dataChannels.get(clientId);
+    if (dc && dc.readyState === 'open') {
+        console.log(`[SIGNALING BLIP] Client ${clientId} lost signaling, but Tactical Link (WebRTC) is still alive. Retaining connection.`);
+        return;
+    }
+
     console.log(`[SIGNALING] Client ${clientId} has vacated the field.`);
     
     // Clean up WebRTC resources

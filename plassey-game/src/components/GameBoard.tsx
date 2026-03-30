@@ -324,13 +324,21 @@ export const GameBoard: React.FC = () => {
 
   const handleConfirmReset = () => {
     if (!isHost && !isHotseatMode) return;
+
+    // GRACEFUL SYNC: Re-verify all players' connectivity via Tactical Link
+    const actualPlayers = players.map(p => {
+      if (p.isHost) return p; // Host is always connected locally
+      const dc = webRTCManager.getDataChannel(p.id);
+      return { ...p, connected: dc?.readyState === 'open' || p.connected };
+    });
+
     returnToQuarters();
 
     if (!isHotseatMode) {
       webRTCManager.broadcastState({
         phase: 'lobby',
         status: 'lobby',
-        players: players.map(p => ({ ...p, role: undefined, faction: undefined })),
+        players: actualPlayers.map(p => ({ ...p, role: undefined, faction: undefined })),
         currentRound: 1,
         failedProposals: 0,
         leaderId: players[0]?.id || null,
@@ -888,8 +896,9 @@ export const GameBoard: React.FC = () => {
           <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-slate-700"></div>
         </div>
 
-        <div className="h-24 bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
-          <div className="flex items-center gap-4">
+        <div className="h-24 bg-slate-900/60 border border-slate-800 rounded-xl p-4 grid grid-cols-3 items-center shadow-xl">
+          {/* Left: Player Identity */}
+          <div className="flex items-center gap-4 justify-self-start">
             {!isHotseatMode ? (
               <>
                 <div className={`w-12 h-12 rounded-lg border flex items-center justify-center ${localPlayer?.faction === 'nawab' ? 'bg-emerald-600/20 border-emerald-500/20' : 'bg-rose-600/20 border-rose-500/20'}`}>
@@ -914,27 +923,31 @@ export const GameBoard: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Center: Tactical Actions */}
+          <div className="justify-self-center">
             {isHost && !isHotseatMode && phase !== 'game_over' && (
               <button
                 onClick={() => setShowResetConfirm(true)}
-                className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2"
+                className="px-4 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 border border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-3 shadow-lg"
               >
-                <span>🔄</span> Reset to Lobby
+                <span className="text-xs">☢️</span> <span>Reset to Lobby</span>
               </button>
             )}
-            <div className="text-right mr-2">
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">
-                Mission Progress {lobbyId && <span className="text-amber-500/60 ml-2">[{lobbyId.toUpperCase()}]</span>}
-              </p>
-              <div className="flex gap-1 justify-end">
-                {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
-                  <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :
-                    result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                      'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                    }`}></div>
-                ))}
-              </div>
+          </div>
+
+          {/* Right: Mission Intelligence */}
+          <div className="justify-self-end text-right mr-2">
+            <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest leading-none mb-1">
+              {lobbyId && <span className="text-amber-500/60 mr-2">[{lobbyId.toUpperCase()}]</span>} Mission Progress
+            </p>
+            <div className="flex gap-1 justify-end">
+              {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
+                <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :
+                  result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                    'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                  }`}></div>
+              ))}
             </div>
           </div>
         </div>
