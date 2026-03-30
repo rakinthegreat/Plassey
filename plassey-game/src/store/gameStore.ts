@@ -115,7 +115,9 @@ export const useGameStore = create<GameStore>()(
         players: state.players.map(p => ({ ...p, role: undefined, faction: undefined }))
       })),
       setMasterState: (state: Partial<GameState>) => set((prev) => {
-        const { localPlayerId, ...safeState } = state as any;
+        // Essential: Filter out local-only properties so clients don't accidentally 
+        // inherit the host's identity or settings.
+        const { localPlayerId, isHost, playerName, isMuted, volume, ...safeState } = state as any;
         return { ...prev, ...safeState };
       }),
       resetSession: () => set((state) => ({ 

@@ -601,7 +601,16 @@ export class WebRTCManager {
 
   public broadcastState(state: any) {
     if (!this.isHost) return;
-    const message = JSON.stringify({ type: "STATE_UPDATE", senderId: this.localPlayerId, data: state });
+
+    // STRIP LOCAL STATE: Ensure we NEVER broadcast host-only identity/settings to clients.
+    // This prevents "Everyone becoming Host" on refresh/sync.
+    const { 
+      localPlayerId, isHost, playerName, 
+      isMuted, volume, networkStatus, 
+      ...safeState 
+    } = state;
+
+    const message = JSON.stringify({ type: "STATE_UPDATE", senderId: this.localPlayerId, data: safeState });
     this.dataChannels.forEach((channel) => {
       if (channel.readyState === 'open') {
         channel.send(message);
