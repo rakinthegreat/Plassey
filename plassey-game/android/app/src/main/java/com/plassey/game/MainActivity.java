@@ -23,27 +23,19 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Sequence permissions: Notification first (API 33+), then Battery Optimization
-        // Commented out notification prompting for now
-        /*
-         * if (android.os.Build.VERSION.SDK_INT >=
-         * android.os.Build.VERSION_CODES.TIRAMISU) {
-         * if (ContextCompat.checkSelfPermission(this,
-         * Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-         * {
-         * ActivityCompat.requestPermissions(this, new
-         * String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_REQUEST_CODE);
-         * } else {
-         * checkBatteryOptimization();
-         * }
-         * } else {
-         * checkBatteryOptimization();
-         * }
-         */
+        // Sequence permissions: Notification first (API 33+), then Battery Optimization for background link stability
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_REQUEST_CODE);
+            } else {
+                checkBatteryOptimization();
+            }
+        } else {
+            checkBatteryOptimization();
+        }
+
         // Check for updates in background
         Updater.checkForUpdates(this);
-        
-        checkBatteryOptimization();
     }
 
     @Override

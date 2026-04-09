@@ -25,6 +25,9 @@ export class WebRTCManager {
     this.clientPeerConnection = null;
     this.clientDataChannel = null;
     
+    // Kill background service
+    this.disableBackgroundMode();
+
     if (this.ws) {
       // Remove listeners to prevent close firing logic
       this.ws.onclose = null;
@@ -50,6 +53,35 @@ export class WebRTCManager {
   ];
 
   private chatHandlers: ((msg: { sender: string; senderName?: string; text: string; time: string }) => void)[] = [];
+
+  private enableBackgroundMode() {
+    // @ts-ignore
+    const bgMode = (window as any).cordova?.plugins?.backgroundMode;
+    if (bgMode) {
+      bgMode.setDefaults({
+        title: 'Plassey 1757',
+        text: 'Tactical link active. Command is in progress.',
+        icon: 'res://icon',
+        color: '0c0f1d',
+        resume: true,
+        hidden: false,
+        bigtext: true
+      });
+      bgMode.enable();
+      if (typeof bgMode.disableWebViewOptimizations === 'function') {
+        bgMode.disableWebViewOptimizations();
+      }
+      console.log("[NATIVE] Background tactical mode ENABLED.");
+    }
+  }
+
+  private disableBackgroundMode() {
+    // @ts-ignore
+    const bgMode = (window as any).cordova?.plugins?.backgroundMode;
+    if (bgMode) {
+      bgMode.disable();
+    }
+  }
 
   constructor() {
     console.log("WebRTCManager initialized with native WebRTC");
@@ -224,6 +256,9 @@ export class WebRTCManager {
         console.log(`[IDENTITY] Generated new Host ID: ${currentId}`);
     }
     this.localPlayerId = currentId;
+
+    // Start background stability service for Host
+    this.enableBackgroundMode();
 
     // SELF-RESURRECTION: Ensure Host is in their own players list
     const state = useGameStore.getState();

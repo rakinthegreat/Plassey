@@ -18,22 +18,6 @@ export class LocalServerManager {
         return;
       }
 
-      // Ensure background persistence for Host
-      // @ts-ignore
-      if (window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
-        // @ts-ignore
-        const bgMode = window.cordova.plugins.backgroundMode;
-        bgMode.setDefaults({
-            title: 'Plassey Host',
-            text: 'Maintaining local tactical link.',
-            hidden: false,
-            silent: false
-        });
-        bgMode.enable();
-        bgMode.on('activate', () => bgMode.disableWebViewOptimizations());
-        console.log('[LOCAL SERVER] Background Execution mode ENABLED.');
-      }
-
       // Register Zeroconf (mDNS) so clients on LAN can discover the server automatically
       // @ts-ignore
       if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf) {
@@ -88,14 +72,6 @@ export class LocalServerManager {
   public static stopServer() {
     if (!this.isRunning) return;
     
-    // Disable background persistence
-    // @ts-ignore
-    if (window.cordova && window.cordova.plugins && window.cordova.plugins.backgroundMode) {
-      // @ts-ignore
-      window.cordova.plugins.backgroundMode.disable();
-      console.log('[LOCAL SERVER] Background Execution mode DISABLED.');
-    }
-
     // Unregister Zeroconf
     // @ts-ignore
     if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf && this.zeroconfServiceName) {

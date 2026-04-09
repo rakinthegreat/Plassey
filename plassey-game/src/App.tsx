@@ -13,6 +13,7 @@ function App() {
   const [showRules, setShowRules] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode, isHotseatMode } = useGameStore();
+  const [isFreshBoot] = useState(status !== 'menu');
   const rejoinAttempted = useRef(false);
 
   useEffect(() => {
@@ -40,9 +41,23 @@ function App() {
   const handleLeaveGame = () => {
     if (window.confirm("Abandon current campaign and return to Main Menu?")) {
       resetSession();
-      window.location.reload(); // Hard refresh to clear classes/listeners
+      webRTCManager.close(); 
+      window.location.reload(); 
     }
   };
+
+  useEffect(() => {
+    // STALE SESSION BUSTER: Only trigger if we BOOTED into a non-menu state (after crash/force stop).
+    if (isFreshBoot && status !== 'menu' && networkStatus === 'none' && rejoinAttempted.current) {
+      const timer = setTimeout(() => {
+        if (networkStatus === 'none') {
+           console.log("[STABILITY] Zombie session detected. Returning to Command Center.");
+           resetSession();
+        }
+      }, 10000); // 10s window for slow LAN/Signaling establishment
+      return () => clearTimeout(timer);
+    }
+  }, [status, networkStatus, isFreshBoot, resetSession]);
 
   const renderContent = () => {
     if (status === 'menu') return <MainMenu />;
