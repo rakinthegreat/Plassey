@@ -47,17 +47,13 @@ function App() {
   };
 
   useEffect(() => {
-    // STALE SESSION BUSTER: Only trigger if we BOOTED into a non-menu state (after crash/force stop).
-    if (isFreshBoot && status !== 'menu' && networkStatus === 'none' && rejoinAttempted.current) {
-      const timer = setTimeout(() => {
-        if (networkStatus === 'none') {
-           console.log("[STABILITY] Zombie session detected. Returning to Command Center.");
-           resetSession();
-        }
-      }, 10000); // 10s window for slow LAN/Signaling establishment
-      return () => clearTimeout(timer);
+    // COLD BOOT RESET: If the app starts up directly into a lobby/game (e.g. after a Force Stop),
+    // we immediately return to the Main Menu for tactical stability.
+    if (isFreshBoot && status !== 'menu') {
+      console.log("[STABILITY] Cold start detected. Returning to Command Center.");
+      resetSession();
     }
-  }, [status, networkStatus, isFreshBoot, resetSession]);
+  }, [isFreshBoot, status, resetSession]);
 
   const renderContent = () => {
     if (status === 'menu') return <MainMenu />;
