@@ -6,8 +6,28 @@ export const GameEngine = {
    * নবাব (Nawab) = Green (Loyalists)
    * ইইসি (EIC) = Red (Spies/Traitors)
    */
-  assignRoles: (players: Player[], isAdvancedMode: boolean): Player[] => {
+  assignRoles: (players: Player[], isAdvancedMode: boolean, isHouseRulesEnabled: boolean = false): Player[] => {
     const count = players.length;
+
+    // HOUSE RULES 4-PLAYER OVERRIDE
+    if (count === 4 && isHouseRulesEnabled) {
+      const fixedRoster = [
+        { role: 'Nawab Siraj-ud-Dawlah', faction: 'nawab' as const },
+        { role: 'Lutfunnisa Begum', faction: 'nawab' as const },
+        { role: 'Mir Madan', faction: 'nawab' as const },
+        { role: 'Mir Jafar', faction: 'eic' as const }
+      ];
+      
+      const shuffle = <T>(array: T[]): T[] => array.sort(() => Math.random() - 0.5);
+      const shuffledRoster = shuffle([...fixedRoster]);
+      
+      return players.map((player, index) => ({
+        ...player,
+        role: shuffledRoster[index].role,
+        faction: shuffledRoster[index].faction
+      }));
+    }
+
     let redCount = 2;
     if (count < 5) redCount = 1; // Testing mode
     else if (count >= 7) redCount = 3;
@@ -82,7 +102,8 @@ export const GameEngine = {
       7: [2, 3, 3, 4, 4],
       8: [3, 4, 4, 5, 5],
       9: [3, 4, 4, 5, 5],
-      10: [3, 4, 4, 5, 5]
+      10: [3, 4, 4, 5, 5],
+      4: [2, 2, 2, 3, 2] // House Rules Variant
     };
     
     const sizes = matrix[playerCount] || matrix[5];
@@ -120,11 +141,14 @@ export const GameEngine = {
   /**
    * Checks if either team has won 3 rounds.
    */
-  checkEndgame(roundHistory: ('nawab' | 'eic' | 'pending')[]) {
+  checkEndgame(roundHistory: ('nawab' | 'eic' | 'pending')[], playerCount?: number, isHouseRulesEnabled?: boolean) {
     const eicWins = roundHistory.filter(w => w === 'eic').length;
     const nawabWins = roundHistory.filter(w => w === 'nawab').length;
 
-    if (eicWins >= 3) return 'eic' as const;
+    // Sudden Death: EIC only needs 2 sabotages to win in 4-player House Rules
+    const eicWinsNeeded = (playerCount === 4 && isHouseRulesEnabled) ? 2 : 3;
+
+    if (eicWins >= eicWinsNeeded) return 'eic' as const;
     if (nawabWins >= 3) return 'nawab' as const;
     return null;
   },

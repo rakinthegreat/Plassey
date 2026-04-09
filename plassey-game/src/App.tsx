@@ -212,6 +212,16 @@ function App() {
                 </ul>
               </section>
 
+              <section className="bg-rose-600/5 p-4 rounded-xl border border-rose-500/10">
+                <h3 className="text-rose-500 font-black uppercase tracking-widest mb-3 border-b border-rose-500/20 pb-2">House Rules (4-Player Variant)</h3>
+                <p className="text-xs mb-3">A high-stakes asymmetric variant designed for smaller tactical units (3 Nawab vs 1 EIC):</p>
+                <ul className="space-y-2 text-[11px] font-bold uppercase tracking-tight">
+                  <li className="flex gap-3"><span className="text-slate-400">Characters:</span> <div className="text-white">Siraj, Lutfunnisa, and Mir Madan vs. Mir Jafar</div></li>
+                  <li className="flex gap-3"><span className="text-slate-400">Mechanics:</span> <div className="text-white">Pure deduction. No eye-opening round, and no final hunt for Mir Madan.</div></li>
+                  <li className="flex gap-3"><span className="text-rose-500">Sudden Death:</span> <div className="text-white">The lone EIC operative (Mir Jafar) only needs to sabotage 2 MISSIONS to win.</div></li>
+                </ul>
+              </section>
+
             </div>
 
             <div className="p-4 border-t border-slate-800 bg-slate-900/30 flex justify-end">

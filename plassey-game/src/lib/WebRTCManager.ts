@@ -841,19 +841,36 @@ export class WebRTCManager {
           } else if (store.phase === 'mission_vote_reveal') {
             const eicWins = store.roundHistory.filter(v => v === 'eic').length;
             const nawabWins = store.roundHistory.filter(v => v === 'nawab').length;
+            const eicWinsNeeded = (store.players.length === 4 && store.isHouseRulesEnabled) ? 2 : 3;
 
-            if (eicWins >= 3) {
+            if (eicWins >= eicWinsNeeded) {
               const newState = {
                 phase: 'game_over' as const,
                 winner: 'eic' as const,
-                winReason: '3_missions_failed' as const
+                winReason: (eicWinsNeeded === 2) ? 'sudden_death_eic_victory' : '3_missions_failed' as const
               };
               store.setMasterState(newState);
               this.broadcastState({ ...store, ...newState });
             } else if (nawabWins >= 3) {
-              const newState = { phase: 'identify_mir_madan' as const };
-              store.setMasterState(newState);
-              this.broadcastState({ ...store, ...newState });
+              // House Rules (4P): Instant victory, no Assassin
+              if (store.players.length === 4 && store.isHouseRulesEnabled) {
+                const newState = {
+                    phase: 'game_over' as const,
+                    winner: 'nawab' as const,
+                    winReason: '3_missions_won' as const
+                };
+                store.setMasterState(newState);
+                this.broadcastState({ ...store, ...newState });
+              } else {
+                const mirJafar = store.players.find(p => p.role === 'Mir Jafar');
+                const newState = {
+                    phase: 'identify_mir_madan' as const,
+                    hotseatActivePlayerIndex: store.players.findIndex(p => p.id === mirJafar?.id),
+                    missionVotes: []
+                };
+                store.setMasterState(newState);
+                this.broadcastState({ ...store, ...newState });
+              }
             } else {
               const nextLeaderIndex = (store.players.findIndex(p => p.id === store.leaderId) + 1) % store.players.length;
               const newState = {

@@ -14,10 +14,12 @@ interface GameStore extends GameState {
   lanHostIp: string;
   setLanMode: (isLan: boolean, hostIp: string) => void;
   isAdvancedMode: boolean;
+  isHouseRulesEnabled: boolean;
   isHotseatMode: boolean;
   hotseatActivePlayerIndex: number;
   showTransitionScreen: boolean;
   toggleAdvancedMode: () => void;
+  toggleHouseRules: () => void;
   setHotseatMode: (active: boolean) => void;
   setHotseatActivePlayerIndex: (index: number) => void;
   setTransitionScreen: (show: boolean) => void;
@@ -70,6 +72,7 @@ const initialState = {
   isMuted: false,
   volume: 0.5,
   isAdvancedMode: false,
+  isHouseRulesEnabled: false,
   isHotseatMode: false,
   hotseatActivePlayerIndex: 0,
   showTransitionScreen: false,
@@ -93,6 +96,7 @@ export const useGameStore = create<GameStore>()(
       setCurrentRound: (round: number) => set({ currentRound: round }),
       setProposedTeam: (team: string[]) => set({ proposedTeam: team }),
       toggleAdvancedMode: () => set((state) => ({ isAdvancedMode: !state.isAdvancedMode })),
+      toggleHouseRules: () => set((state) => ({ isHouseRulesEnabled: !state.isHouseRulesEnabled })),
       setHotseatMode: (active) => set({ isHotseatMode: active }),
       setHotseatActivePlayerIndex: (index) => set({ hotseatActivePlayerIndex: index }),
       setTransitionScreen: (show) => set({ showTransitionScreen: show }),
@@ -112,7 +116,8 @@ export const useGameStore = create<GameStore>()(
         lastMissionVoteResult: null,
         winner: undefined,
         winReason: undefined,
-        players: state.players.map(p => ({ ...p, role: undefined, faction: undefined }))
+        players: state.players.map(p => ({ ...p, role: undefined, faction: undefined })),
+        isHouseRulesEnabled: state.isHouseRulesEnabled
       })),
       setMasterState: (state: Partial<GameState>) => set((prev) => {
         // Essential: Filter out local-only properties so clients don't accidentally 
@@ -171,6 +176,7 @@ export const useGameStore = create<GameStore>()(
         isMuted: state.isMuted,
         volume: state.volume,
         isAdvancedMode: state.isAdvancedMode,
+        isHouseRulesEnabled: state.isHouseRulesEnabled,
         isHotseatMode: state.isHotseatMode,
         hotseatActivePlayerIndex: state.hotseatActivePlayerIndex,
         showTransitionScreen: state.showTransitionScreen,

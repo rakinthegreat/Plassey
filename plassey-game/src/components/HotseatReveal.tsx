@@ -9,7 +9,8 @@ export const HotseatReveal: React.FC = () => {
         setHotseatActivePlayerIndex, 
         setPhase, 
         setStatus,
-        isAdvancedMode
+        isAdvancedMode,
+        isHouseRulesEnabled
     } = useGameStore();
 
     const [cardVisible, setCardVisible] = useState(false);
@@ -42,6 +43,12 @@ export const HotseatReveal: React.FC = () => {
     // Derived visibility (eyes open logic)
     const getVisibleFactions = () => {
         if (!currentPlayer) return [];
+
+        // HOUSE RULES 4-PLAYER: BLIND START (No vision of others)
+        if (players.length === 4 && isHouseRulesEnabled) {
+            return [];
+        }
+
         // Same logic as GameBoard's getVisibleIdentity but simplified for reveal list
         return players.filter(p => {
             if (p.id === currentPlayer.id) return false;
@@ -137,7 +144,9 @@ export const HotseatReveal: React.FC = () => {
 
                     <div className="pt-4">
                         <p className="text-center text-slate-500 text-[11px] mb-6 italic leading-relaxed">
-                            Memorize your role and contacts. Once you hide this card, intelligence is offline until the campaign ends.
+                            {players.length === 4 && isHouseRulesEnabled 
+                                ? "Memorize your role. No other intelligence is available in this variant." 
+                                : "Memorize your role and contacts. Once you hide this card, intelligence is offline until the campaign ends."}
                         </p>
                         <button 
                             onClick={handleNext}

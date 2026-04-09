@@ -143,7 +143,14 @@ export const GameBoard: React.FC = () => {
     if (viewer.id === target.id) return { faction: target.faction, role: target.role };
     if (phase === 'game_over') return { faction: target.faction, role: target.role };
 
+    const isHouseRules = players.length === 4 && useGameStore.getState().isHouseRulesEnabled;
+
     if (phase === 'role_reveal') {
+      // HOUSE RULES 4-PLAYER: BLIND START (No vision of others)
+      if (isHouseRules) {
+        return undefined;
+      }
+
       if (isAdvancedMode) {
         // 1. EIC Vision: All EIC members see each other, EXCEPT Omichand.
         // Omichand is hidden from the rest of the EIC, but he sees them.
@@ -386,17 +393,24 @@ export const GameBoard: React.FC = () => {
         const nawabWins = newHistory.filter(r => r === 'nawab').length;
         const eicWins = newHistory.filter(r => r === 'eic').length;
 
+        const eicWinsNeeded = (players.length === 4 && useGameStore.getState().isHouseRulesEnabled) ? 2 : 3;
+
         if (nawabWins === 3) {
-          const mirJafar = players.find(p => p.role === 'Mir Jafar');
-          setMasterState({
-            phase: 'identify_mir_madan',
-            roundHistory: newHistory,
-            hotseatActivePlayerIndex: players.findIndex(p => p.id === mirJafar?.id),
-            showTransitionScreen: true,
-            missionVotes: []
-          });
-        } else if (eicWins === 3) {
-          setWinner('eic', '3_missions_failed');
+          // House Rules (4P): Instant victory, no Assassin
+          if (players.length === 4 && useGameStore.getState().isHouseRulesEnabled) {
+             setWinner('nawab', '3_missions_won');
+          } else {
+             const mirJafar = players.find(p => p.role === 'Mir Jafar');
+             setMasterState({
+                phase: 'identify_mir_madan',
+                roundHistory: newHistory,
+                hotseatActivePlayerIndex: players.findIndex(p => p.id === mirJafar?.id),
+                showTransitionScreen: true,
+                missionVotes: []
+             });
+          }
+        } else if (eicWins >= eicWinsNeeded) {
+          setWinner('eic', eicWinsNeeded === 2 ? 'sudden_death_eic_victory' : '3_missions_failed');
         } else {
           const nextLeaderIndex = (players.findIndex(p => p.id === leaderId) + 1) % players.length;
           setMasterState({
@@ -482,6 +496,11 @@ export const GameBoard: React.FC = () => {
       case 'team_proposal':
         return (
           <div className="flex flex-col h-full items-center justify-center p-8 animate-in fade-in slide-in-from-right-8 duration-500">
+            {players.length === 4 && useGameStore.getState().isHouseRulesEnabled && (
+               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-rose-600/20 border border-rose-500/50 px-4 py-1 rounded-full animate-pulse z-10">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400">Sudden Death: EIC Needs 2 Wins</span>
+               </div>
+            )}
             <div className="mb-8 text-center">
               <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black mb-2">Phase: Team Proposal</h3>
               <h2 className="text-3xl font-black text-white uppercase tracking-tight">

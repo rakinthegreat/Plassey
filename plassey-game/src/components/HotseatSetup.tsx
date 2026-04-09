@@ -12,7 +12,9 @@ export const HotseatSetup: React.FC = () => {
         setHotseatMode,
         setStatus,
         isAdvancedMode,
+        isHouseRulesEnabled,
         toggleAdvancedMode,
+        toggleHouseRules,
         updatePlayers,
         setPhase,
         setHotseatActivePlayerIndex,
@@ -50,7 +52,7 @@ export const HotseatSetup: React.FC = () => {
         }));
 
         // 2. Assign Roles
-        const playersWithRoles = GameEngine.assignRoles(players, isAdvancedMode);
+        const playersWithRoles = GameEngine.assignRoles(players, isAdvancedMode, isHouseRulesEnabled);
 
         // 3. Setup Store
         setHotseatMode(true);
@@ -76,15 +78,39 @@ export const HotseatSetup: React.FC = () => {
 
             {step === 1 && (
                 <div className="w-full space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex flex-col gap-3 mb-6">
+                        <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${isAdvancedMode ? 'text-amber-500' : 'text-slate-500'}`}>Advanced Mode</span>
+                            <button
+                                onClick={toggleAdvancedMode}
+                                className={`w-10 h-5 rounded-full transition-all relative ${isAdvancedMode ? 'bg-amber-600' : 'bg-slate-700'}`}
+                            >
+                                <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${isAdvancedMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${isHouseRulesEnabled ? 'text-amber-500' : 'text-slate-500'}`}>House Rules (Allow 4P)</span>
+                            <button
+                                onClick={() => {
+                                    toggleHouseRules();
+                                    if (!isHouseRulesEnabled && numPlayers > 10) setNumPlayers(10);
+                                }}
+                                className={`w-10 h-5 rounded-full transition-all relative ${isHouseRulesEnabled ? 'bg-amber-600' : 'bg-slate-700'}`}
+                            >
+                                <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${isHouseRulesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                        </div>
+                    </div>
+
                     <h3 className="text-amber-500 font-black uppercase tracking-widest text-xs text-center">Select Personnel Count</h3>
                     <div className="grid grid-cols-3 gap-3">
-                        {[5, 6, 7, 8, 9, 10].map(n => (
+                        {(isHouseRulesEnabled ? [4, 5, 6, 7, 8, 9, 10] : [5, 6, 7, 8, 9, 10]).map(n => (
                             <button
                                 key={n}
                                 onClick={() => handleNumSelect(n)}
                                 className={`py-4 rounded-xl border-2 font-black text-xl transition-all ${numPlayers === n
-                                        ? 'bg-amber-600 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]'
-                                        : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                                    ? 'bg-amber-600 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]'
+                                    : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
                                     }`}
                             >
                                 {n}
