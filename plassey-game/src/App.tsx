@@ -13,7 +13,17 @@ function App() {
   const [showRules, setShowRules] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode, isHotseatMode } = useGameStore();
-  const [isFreshBoot] = useState(status !== 'menu');
+  const [isFreshBoot] = useState(() => {
+    // A boot is only "Fresh" (potentially a Force Stop recovery) if:
+    // 1. The store loaded a non-menu state (lobby/game)
+    // 2. This is the very first time the JS bundle is loading in this tab/process
+    const isWarm = sessionStorage.getItem('plassey_warm_session');
+    if (isWarm) return false;
+    
+    // Mark as warm for subsequent refreshes
+    sessionStorage.setItem('plassey_warm_session', 'true');
+    return status !== 'menu';
+  });
   const rejoinAttempted = useRef(false);
 
   useEffect(() => {
