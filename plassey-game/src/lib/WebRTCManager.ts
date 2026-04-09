@@ -289,6 +289,24 @@ export class WebRTCManager {
   }
 
   private async handleClientJoin(clientId: string) {
+    const store = useGameStore.getState();
+    
+    // SECURITY BLOCKADE: If the campaign has already started, do not allow new reinforcements.
+    // This prevents the "Company Saboteur" bug where late joiners aren't assigned roles.
+    if (store.status === 'in_progress') {
+      const isRecognized = store.players.some(p => p.id === clientId);
+      if (!isRecognized) {
+        console.warn(`[SECURITY] Blocked unauthorized mid-game join attempt from ${clientId}`);
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Campaign in progress. No new reinforcements allowed.'
+          }));
+        }
+        return;
+      }
+    }
+
     console.log(`Incoming connection request from client: ${clientId}`);
     
     // Cleanup existing connection for this client if any
