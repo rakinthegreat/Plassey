@@ -133,36 +133,47 @@ export class LocalServerManager {
        const hId = senderId || sender;
        
        if (this.hostPeerId && this.hostPeerId !== hId) {
+           console.warn(`[LOCAL SERVER] Host collision! Existing: ${this.hostPeerId}, New: ${hId}`);
            this.sendToConn(conn, { type: 'error', message: 'Room already hosted.' });
            return;
        }
 
        this.hostPeerId = hId;
        this.peerToConn.set(hId, conn.uuid);
-       console.log(`[LOCAL SERVER] Host registered room: ${rId} (ID: ${hId})`);
+       console.log(`[LOCAL SERVER] Host registered room: ${rId} (ID: ${hId}) on connection: ${conn.uuid}`);
     } else if (type === 'join_room') {
        const actualSender = sender || senderId;
        const actualRoom = room || roomCode;
        this.peerToConn.set(actualSender, conn.uuid);
+       console.log(`[LOCAL SERVER] Client ${actualSender} joining room: ${actualRoom} using connection: ${conn.uuid}`);
        
        const hostConnUuid = this.hostPeerId ? this.peerToConn.get(this.hostPeerId) : null;
        if (hostConnUuid) {
            this.sendToConnId(hostConnUuid, { type: 'client_join', sender: actualSender });
-           console.log(`[LOCAL SERVER] Client ${actualSender} joined room ${actualRoom}`);
+           console.log(`[LOCAL SERVER] Notified Host (${this.hostPeerId}) of client join.`);
+       } else {
+           console.warn(`[LOCAL SERVER] Host NOT FOUND for room ${actualRoom}. Handshake will stall.`);
        }
     } else if (type === 'offer' || type === 'answer' || type === 'ice_candidate') {
        // From host to client (isHost here means message is sent by Host, wait, actually we can just rely on IDs)
        if (this.hostPeerId === (sender || senderId)) {
            // Routing from Host -> Client
-           const targetConnId = this.peerToConn.get(target || targetId);
+           const targetIdActual = target || targetId;
+           const targetConnId = this.peerToConn.get(targetIdActual);
            if (targetConnId) {
+               console.log(`[LOCAL SERVER] Routing ${type} from Host to Client: ${targetIdActual}`);
                this.sendToConnId(targetConnId, msg);
+           } else {
+               console.warn(`[LOCAL SERVER] Failed to route ${type}: Client ${targetIdActual} not found.`);
            }
        } else {
            // Routing from Client -> Host
            const hostConnUuid = this.hostPeerId ? this.peerToConn.get(this.hostPeerId) : null;
            if (hostConnUuid) {
+               console.log(`[LOCAL SERVER] Routing ${type} from Client (${sender || senderId}) to Host`);
                this.sendToConnId(hostConnUuid, msg);
+           } else {
+               console.warn(`[LOCAL SERVER] Failed to route ${type}: Host not found.`);
            }
        }
     }

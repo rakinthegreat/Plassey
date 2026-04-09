@@ -104,6 +104,13 @@ export class WebRTCManager {
   }
 
   async fetchTurnCredentials() {
+    // HARD GATE: Only bypass if we are on a custom signaling server (LAN)
+    // Cloud users will always have customWsUrl as null and proceed normally.
+    if (this.customWsUrl) {
+        console.log("[LAN] Custom server detected. Bypassing external TURN to avoid hotspot hangs.");
+        return;
+    }
+
     try {
       console.log("Fetching premium TURN credentials...");
       const response = await fetch("https://plassey.metered.live/api/v1/turn/credentials?apiKey=af0229bc3759ddf9c0db4176fd4ad3b79929");
@@ -202,10 +209,10 @@ export class WebRTCManager {
     this.isHost = true;
     this.roomCode = roomCode;
     
-    // PERSISTENCE: If we are re-joining a LAN session, ensure we use the local loopback
-    const store = useGameStore.getState();
-    if (store.isLanMode) {
-        console.log(`[LAN] Local Host Re-initialization: Binding to 127.0.0.1`);
+    // HARD GATE: If we are in LAN mode (customWsUrl set), force loopback for the host's own connection.
+    // This bypasses Android's "Public IP Loopback" block where an app cannot connect to its own external IP.
+    if (this.customWsUrl) {
+        console.log("[LAN] Host detected. Forcing internal loopback signaling for stability.");
         this.setCustomServerUrl('ws://127.0.0.1:8081');
     }
     
@@ -431,13 +438,6 @@ export class WebRTCManager {
   public async initializeAsClient(roomCode: string, playerName: string) {
     this.isHost = false;
     this.roomCode = roomCode;
-    
-    // PERSISTENCE: If we are re-joining a LAN session, ensure we use the persisted Host IP
-    const store = useGameStore.getState();
-    if (store.isLanMode && store.lanHostIp) {
-        console.log(`[LAN] Local Client Re-initialization: Binding to ${store.lanHostIp}`);
-        this.setCustomServerUrl(`ws://${store.lanHostIp}:8081`);
-    }
     
     // Enforce Local Player ID
     let currentId = useGameStore.getState().localPlayerId;

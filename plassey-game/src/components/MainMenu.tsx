@@ -48,8 +48,8 @@ export const MainMenu: React.FC = () => {
             const ip = service.ipv4Addresses && service.ipv4Addresses[0];
             // Robust extraction: Try metadata first, then service name fallback (PlasseyHost_ABCD)
             const metaCode = service.txt && service.txt.roomId;
-            const namePart = service.name.split('_')[1];
-            const code = (metaCode || namePart || '').toUpperCase();
+            const namePart = (service.name.split('_')[1] || '').split(' ')[0]; // Split by space to handle (2)
+            const code = (metaCode || namePart).toUpperCase();
 
             if (ip) {
               setDiscoveredHosts(prev => {
