@@ -18,10 +18,24 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private static final int NOTIFICATION_REQUEST_CODE = 101;
+    private static boolean isProcessFresh = true;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // COLD BOOT DETECTION: If the process is fresh (after Force Stop), signal JS
+        if (isProcessFresh) {
+            // Use a synchronous Javascript interface so JS can read it immediately on boot
+            this.bridge.getWebView().addJavascriptInterface(new Object() {
+                @android.webkit.JavascriptInterface
+                public boolean isFresh() {
+                    boolean result = isProcessFresh;
+                    isProcessFresh = false;
+                    return result;
+                }
+            }, "NativeBoot");
+        }
 
         // Sequence permissions: Notification first (API 33+), then Battery Optimization for background link stability
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

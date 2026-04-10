@@ -13,16 +13,15 @@ function App() {
   const [showRules, setShowRules] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const { status, lobbyId, localPlayerId, playerName, isHost, resetSession, networkStatus, phase, isLanMode, isHotseatMode } = useGameStore();
-  const [isFreshBoot] = useState(() => {
-    // A boot is only "Fresh" (potentially a Force Stop recovery) if:
-    // 1. The store loaded a non-menu state (lobby/game)
-    // 2. This is the very first time the JS bundle is loading in this tab/process
-    const isWarm = sessionStorage.getItem('plassey_warm_session');
-    if (isWarm) return false;
-    
-    // Mark as warm for subsequent refreshes
-    sessionStorage.setItem('plassey_warm_session', 'true');
-    return status !== 'menu';
+  const [isFreshBoot, setIsFreshBoot] = useState(() => {
+    // 1. Check Native Android Bridge (Deterministic & Synchronous)
+    if ((window as any).NativeBoot?.isFresh) {
+      const isFresh = (window as any).NativeBoot.isFresh();
+      return isFresh && status !== 'menu';
+    }
+
+    // 2. Browser Fallback: No auto-reset on standard web environments
+    return false;
   });
   const rejoinAttempted = useRef(false);
 
@@ -57,13 +56,14 @@ function App() {
   };
 
   useEffect(() => {
-    // COLD BOOT RESET: If the app starts up directly into a lobby/game (e.g. after a Force Stop),
-    // we immediately return to the Main Menu for tactical stability.
+    // FORCE STOP RECOVERY: If Java detected a fresh process launch into a stale lobby,
+    // we return to the Command Center immediately.
     if (isFreshBoot && status !== 'menu') {
-      console.log("[STABILITY] Cold start detected. Returning to Command Center.");
+      console.log("[STABILITY] Native Cold Start detected. Resetting tactical state.");
       resetSession();
+      setIsFreshBoot(false); // CRITICAL: Clear flag so user can start a new game
     }
-  }, [isFreshBoot, status, resetSession]);
+  }, [isFreshBoot, status, resetSession, setIsFreshBoot]);
 
   const renderContent = () => {
     if (status === 'menu') return <MainMenu />;
