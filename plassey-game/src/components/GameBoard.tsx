@@ -36,7 +36,8 @@ export const GameBoard: React.FC = () => {
     setPendingVoters,
     setWinner,
     resetSession,
-    setMasterState
+    setMasterState,
+    isHouseRulesEnabled
   } = useGameStore();
 
   // In Hotseat mode, "activePlayer" is whoever the device is passed to
@@ -45,7 +46,7 @@ export const GameBoard: React.FC = () => {
   const leader = players.find(p => p.id === leaderId);
 
   const isHost = isHotseatMode ? activePlayer?.isHost : localPlayer?.isHost;
-  const teamSize = GameEngine.getTeamSize(players.length, currentRound);
+  const teamSize = GameEngine.getTeamSize(players.length, currentRound, isHouseRulesEnabled);
   const isOnTeam = activePlayer ? proposedTeam.includes(activePlayer.id) : false;
   const isLeader = activePlayer?.id === leaderId;
 
@@ -959,12 +960,15 @@ export const GameBoard: React.FC = () => {
               {lobbyId && <span className="text-amber-500/60 mr-2">[{lobbyId.toUpperCase()}]</span>} Mission Progress
             </p>
             <div className="flex gap-1 justify-end">
-              {(roundHistory as ('nawab' | 'eic' | 'pending')[]).map((result: 'nawab' | 'eic' | 'pending', i: number) => (
-                <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :
-                  result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                    'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                  }`}></div>
-              ))}
+              {GameEngine.getMissionMatrix(players.length, isHouseRulesEnabled).map((_, i) => {
+                const result = roundHistory[i] || 'pending';
+                return (
+                  <div key={i} className={`w-3 h-1.5 rounded-full border ${result === 'pending' ? 'bg-slate-800 border-slate-700' :
+                    result === 'nawab' ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                      'bg-rose-500 border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+                    }`}></div>
+                );
+              })}
             </div>
           </div>
         </div>

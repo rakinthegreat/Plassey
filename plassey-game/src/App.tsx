@@ -212,6 +212,59 @@ function App() {
                 </div>
               </section>
 
+              <section>
+                <h3 className="text-amber-500 font-black uppercase tracking-widest mb-4 border-b border-slate-800 pb-2">Campaign Matrix</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px] text-center border-collapse">
+                    <thead>
+                      <tr className="text-slate-500 font-black uppercase tracking-tighter border-b border-slate-800">
+                        <th className="py-2 text-left">Commanders</th>
+                        <th className="py-2">R1</th>
+                        <th className="py-2">R2</th>
+                        <th className="py-2">R3</th>
+                        <th className="py-2">R4</th>
+                        <th className="py-2">R5</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-slate-400 font-bold">
+                      <tr className="border-b border-white/5">
+                        <td className="py-2 text-left text-slate-200">5 Players</td>
+                        <td className="py-2">2</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">2</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">3</td>
+                      </tr>
+                      <tr className="border-b border-white/5">
+                        <td className="py-2 text-left text-slate-200">6 Players</td>
+                        <td className="py-2">2</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">4</td>
+                      </tr>
+                      <tr className="border-b border-white/5 bg-slate-800/20">
+                        <td className="py-2 text-left text-amber-500/80">7 Players</td>
+                        <td className="py-2">2</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2 text-amber-500 underline decoration-amber-500/30 underline-offset-4">4*</td>
+                        <td className="py-2">4</td>
+                      </tr>
+                      <tr className="border-b border-white/5 bg-slate-800/20">
+                        <td className="py-2 text-left text-amber-500/80">8-10 Players</td>
+                        <td className="py-2">3</td>
+                        <td className="py-2">4</td>
+                        <td className="py-2">4</td>
+                        <td className="py-2 text-amber-500 underline decoration-amber-500/30 underline-offset-4">5*</td>
+                        <td className="py-2">5</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[9px] text-slate-500 mt-2 italic">* Requires exactly TWO sabotages to fail the mission.</p>
+              </section>
+
               <section className="bg-amber-500/5 p-4 rounded-xl border border-amber-500/10">
                 <h3 className="text-amber-500 font-black uppercase tracking-widest mb-3 border-b border-amber-500/20 pb-2">Advanced Operations</h3>
                 <p className="text-xs mb-4">When Advanced Mode is enabled, historical role complexities are introduced:</p>
@@ -225,11 +278,23 @@ function App() {
               <section className="bg-rose-600/5 p-4 rounded-xl border border-rose-500/10">
                 <h3 className="text-rose-500 font-black uppercase tracking-widest mb-3 border-b border-rose-500/20 pb-2">House Rules (4-Player Variant)</h3>
                 <p className="text-xs mb-3">A high-stakes asymmetric variant designed for smaller tactical units (3 Nawab vs 1 EIC):</p>
-                <ul className="space-y-2 text-[11px] font-bold uppercase tracking-tight">
+                <ul className="space-y-2 text-[11px] font-bold uppercase tracking-tight mb-4">
                   <li className="flex gap-3"><span className="text-slate-400">Characters:</span> <div className="text-white">Siraj, Lutfunnisa, and Mir Madan vs. Mir Jafar</div></li>
                   <li className="flex gap-3"><span className="text-slate-400">Mechanics:</span> <div className="text-white">Pure deduction. No eye-opening round, and no final hunt for Mir Madan.</div></li>
                   <li className="flex gap-3"><span className="text-rose-500">Sudden Death:</span> <div className="text-white">The lone EIC operative (Mir Jafar) only needs to sabotage 2 MISSIONS to win.</div></li>
                 </ul>
+                
+                <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800">
+                  <h4 className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em] mb-2 text-center">4P Tactical Matrix</h4>
+                  <div className="flex justify-between px-4">
+                    {['R1: 2', 'R2: 2', 'R3: 2', 'R4: 3'].map((item, i) => (
+                      <div key={i} className="flex flex-col items-center">
+                        <span className="text-white font-black text-[12px]">{item.split(': ')[1]}</span>
+                        <span className="text-[8px] text-slate-600 font-bold uppercase">{item.split(': ')[0]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </section>
 
             </div>

@@ -95,7 +95,12 @@ export const GameEngine = {
     }));
   },
 
-  getTeamSize: (playerCount: number, round: number): number => {
+  getTeamSize: (playerCount: number, round: number, isHouseRules: boolean = false): number => {
+    const sizes = GameEngine.getMissionMatrix(playerCount, isHouseRules);
+    return sizes[round - 1] || sizes[sizes.length - 1];
+  },
+
+  getMissionMatrix: (playerCount: number, isHouseRules: boolean = false): number[] => {
     const matrix: Record<number, number[]> = {
       5: [2, 3, 2, 3, 3],
       6: [2, 3, 3, 3, 4],
@@ -103,11 +108,10 @@ export const GameEngine = {
       8: [3, 4, 4, 5, 5],
       9: [3, 4, 4, 5, 5],
       10: [3, 4, 4, 5, 5],
-      4: [2, 2, 2, 3, 2] // House Rules Variant
+      4: isHouseRules ? [2, 2, 2, 3] : [2, 2, 2, 3, 2]
     };
     
-    const sizes = matrix[playerCount] || matrix[5];
-    return sizes[round - 1];
+    return matrix[playerCount] || matrix[5];
   },
 
   /**
