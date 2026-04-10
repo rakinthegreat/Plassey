@@ -79,26 +79,26 @@ export const Lobby: React.FC = () => {
         </div>
         {isHost && (
           <div className="text-right">
-            <div className="flex flex-col gap-2 mb-4">
-              <div className="flex items-center justify-end gap-3">
-                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isAdvancedMode ? 'text-amber-500' : 'text-slate-600'}`}>
+            <div className="flex flex-col gap-3 mb-4 items-end">
+              <div className="flex items-center gap-4">
+                <span className={`text-[10px] font-black uppercase tracking-widest text-right transition-colors w-32 ${isAdvancedMode ? 'text-amber-500' : 'text-slate-600'}`}>
                   Advanced Mode
                 </span>
                 <button
                   onClick={handleToggleAdvanced}
-                  className={`w-10 h-5 rounded-full transition-all relative ${isAdvancedMode ? 'bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.3)]' : 'bg-slate-700'}`}
+                  className={`w-10 h-5 rounded-full transition-all relative shrink-0 ${isAdvancedMode ? 'bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.3)]' : 'bg-slate-700'}`}
                 >
                   <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${isAdvancedMode ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
 
-              <div className="flex items-center justify-end gap-3">
-                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isHouseRulesEnabled ? 'text-amber-500' : 'text-slate-600'}`}>
-                  House Rules (Allow 4P)
+              <div className="flex items-center gap-4">
+                <span className={`text-[10px] font-black uppercase tracking-widest text-right transition-colors w-32 ${isHouseRulesEnabled ? 'text-amber-500' : 'text-slate-600'}`}>
+                  House Rules (4P)
                 </span>
                 <button
                   onClick={handleToggleHouseRules}
-                  className={`w-10 h-5 rounded-full transition-all relative ${isHouseRulesEnabled ? 'bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.3)]' : 'bg-slate-700'}`}
+                  className={`w-10 h-5 rounded-full transition-all relative shrink-0 ${isHouseRulesEnabled ? 'bg-amber-600 shadow-[0_0_10px_rgba(217,119,6,0.3)]' : 'bg-slate-700'}`}
                 >
                   <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${isHouseRulesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
@@ -170,21 +170,21 @@ export const Lobby: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between px-8">
+      <div className="p-4 py-3 bg-slate-900/90 border-t border-slate-800 flex flex-wrap items-center justify-center sm:justify-between px-8 gap-4">
         <div className="flex items-center gap-2 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
           <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span>
           Peer Signaling Active
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Network:</span>
-          <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${networkStatus === 'turn'
-              ? 'bg-emerald-500/20 text-emerald-500'
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Network Status</span>
+          <div className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${networkStatus === 'turn'
+              ? 'bg-emerald-500/20 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
               : networkStatus === 'stun'
-                ? 'bg-amber-500/20 text-amber-500'
-                : 'bg-rose-500/20 text-rose-500'
+                ? 'bg-amber-500/20 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
+                : 'bg-rose-500/20 text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.1)]'
             }`}>
-            {networkStatus === 'turn' ? 'Open (TURN)' : networkStatus === 'stun' ? 'Limited (STUN)' : 'Restricted'}
+            {networkStatus === 'turn' ? 'Open (Relay)' : networkStatus === 'stun' ? 'Limited (STUN)' : 'Restricted'}
           </div>
         </div>
       </div>

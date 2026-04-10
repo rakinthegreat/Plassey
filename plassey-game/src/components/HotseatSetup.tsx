@@ -133,7 +133,7 @@ export const HotseatSetup: React.FC = () => {
                         <span className="text-slate-600 text-[10px] font-bold uppercase">{numPlayers} Total</span>
                     </div>
 
-                    <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="space-y-4 max-h-[45vh] overflow-y-auto px-1 pt-1 pb-10 custom-scrollbar">
                         {names.map((name, i) => (
                             <div key={i} className="flex flex-col gap-1">
                                 <label className="text-[9px] text-slate-600 font-black uppercase tracking-widest pl-1">Unit {i + 1}</label>

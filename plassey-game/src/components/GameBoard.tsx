@@ -496,17 +496,17 @@ export const GameBoard: React.FC = () => {
       case 'team_proposal':
         return (
           <div className="flex flex-col h-full items-center justify-center p-8 animate-in fade-in slide-in-from-right-8 duration-500">
-            {players.length === 4 && useGameStore.getState().isHouseRulesEnabled && (
-               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-rose-600/20 border border-rose-500/50 px-4 py-1 rounded-full animate-pulse z-10">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400">Sudden Death: EIC Needs 2 Wins</span>
-               </div>
-            )}
-            <div className="mb-8 text-center">
-              <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black mb-2">Phase: Team Proposal</h3>
+            <div className="mb-8 text-center flex flex-col items-center gap-2">
+              {players.length === 4 && useGameStore.getState().isHouseRulesEnabled && (
+                <div className="bg-rose-600/20 border border-rose-500/50 px-4 py-1 rounded-full animate-pulse mb-2">
+                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400">Sudden Death: EIC Needs 2 Wins</span>
+                </div>
+              )}
+              <h3 className="text-slate-500 uppercase tracking-[0.4em] text-xs font-black">Phase: Team Proposal</h3>
               <h2 className="text-3xl font-black text-white uppercase tracking-tight">
                 {isLeader ? "Select Your Expeditionary Force" : `Waiting for ${leader?.name}`}
               </h2>
-              <div className="mt-2 text-amber-500 font-bold bg-amber-500/10 inline-block px-3 py-1 rounded text-xs border border-amber-500/20">
+              <div className="mt-1 text-amber-500 font-bold bg-amber-500/10 inline-block px-3 py-1 rounded text-xs border border-amber-500/20">
                 Required Strength: {teamSize} Commanders
               </div>
             </div>
