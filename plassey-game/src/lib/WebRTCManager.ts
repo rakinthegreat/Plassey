@@ -97,6 +97,14 @@ export class WebRTCManager {
   public setCustomServerUrl(url: string | null) {
     this.customWsUrl = url;
   }
+
+  private nativeLog(level: 'i'|'d'|'e'|'w', msg: string) {
+    // @ts-ignore
+    if (window.NativeLog && window.NativeLog[level]) {
+        // @ts-ignore
+        window.NativeLog[level]("PLASSEY_TACTICAL", msg);
+    }
+  }
   
   public getSignalingUrl(): string {
      return this.customWsUrl || import.meta.env.VITE_WS_URL || 'wss://plassey-server.herokuapp.com';
@@ -155,8 +163,17 @@ export class WebRTCManager {
     }
   }
 
+  private getIceServers(): RTCIceServer[] {
+    if (this.customWsUrl) {
+      console.log("[LAN] Tactical Isolation: Relying on direct host candidates.");
+      return [];
+    }
+    return this.iceServers;
+  }
+
   private async handleSignalingMessage(event: MessageEvent) {
     const msg = JSON.parse(event.data);
+    this.nativeLog('d', `RX: ${msg.type} from ${msg.senderId || msg.sender}`);
     console.log(`[SIGNALING] RX: ${msg.type} from ${msg.senderId || msg.sender}`);
 
     if (msg.type === 'error') {
@@ -237,15 +254,22 @@ export class WebRTCManager {
     }
   }
 
-  public async initializeAsHost(roomCode: string) {
+  public async initializeAsHost(roomCode: string, addr?: string) {
     this.isHost = true;
     this.roomCode = roomCode;
     
     // HARD GATE: If we are in LAN mode (customWsUrl set), force loopback for the host's own connection.
     // This bypasses Android's "Public IP Loopback" block where an app cannot connect to its own external IP.
     if (this.customWsUrl) {
-        console.log("[LAN] Host detected. Forcing internal loopback signaling for stability.");
-        this.setCustomServerUrl('ws://127.0.0.1:8081');
+        let listenAddr = addr;
+        if (addr === '::' || addr === '0.0.0.0' || !addr) {
+            console.log(`[LAN] Host Server bound to: ${listenAddr}. Loopback using: 127.0.0.1`);
+            listenAddr = '127.0.0.1';
+        } else {
+            console.log(`[LAN] Host Server bound to: ${listenAddr}`);
+        }
+        
+        this.setCustomServerUrl(`ws://${listenAddr}:8081`);
     }
     
     // Enforce Local Player ID
@@ -275,7 +299,7 @@ export class WebRTCManager {
 
     await this.connectWebSocket();
 
-    console.log(`[SIGNALING] Registering as HOST for room: ${roomCode}`);
+    this.nativeLog('i', `Registering as HOST for room: ${roomCode}`);
     this.ws!.send(JSON.stringify({
       type: 'host_room',
       room: roomCode,
@@ -362,7 +386,7 @@ export class WebRTCManager {
     try {
       console.log(`[${clientId}] 1. Creating new RTCPeerConnection...`);
       const pc = new RTCPeerConnection({ 
-        iceServers: this.iceServers,
+        iceServers: this.getIceServers(),
         iceTransportPolicy: 'all',
         iceCandidatePoolSize: 10
       });
@@ -435,16 +459,15 @@ export class WebRTCManager {
   }
 
   private setupDataChannel(channel: RTCDataChannel, peerId: string) {
-    channel.onopen = () => {
+    const onOpenHandler = () => {
       console.log(`Data channel opened with ${peerId}`);
       if (this.isHost) {
         this.dataChannels.set(peerId, channel);
         
         // Push full state to the newly joined client
         const currentState = useGameStore.getState();
-        channel.send(JSON.stringify({
+        this.broadcastStateToPeer(peerId, {
             type: 'STATE_UPDATE',
-            senderId: 'HOST',
             data: {
                 lobbyId: currentState.lobbyId,
                 status: currentState.status,
@@ -463,10 +486,11 @@ export class WebRTCManager {
                 lastTeamVoteResult: currentState.lastTeamVoteResult,
                 lastMissionVoteResult: currentState.lastMissionVoteResult
             }
-        }));
+        });
       } else {
         this.clientDataChannel = channel;
         // As a client, immediately join the lobby officially
+        console.log(`[CLIENT] Sending join_lobby to Host over DataChannel...`);
         this.sendActionToHost({
             type: "join_lobby",
             senderId: this.localPlayerId || "",
@@ -474,6 +498,12 @@ export class WebRTCManager {
         });
       }
     };
+
+    if (channel.readyState === 'open') {
+      onOpenHandler();
+    } else {
+      channel.onopen = onOpenHandler;
+    }
 
     channel.onmessage = (event) => {
       this.handleIncomingMessage(event.data);
@@ -519,7 +549,7 @@ export class WebRTCManager {
 
     (this as any)._tempPlayerName = playerName;
 
-    console.log(`[SIGNALING] Joining room ${roomCode} as Client: ${this.localPlayerId}`);
+    this.nativeLog('i', `Joining room ${roomCode} as Client: ${this.localPlayerId}`);
     this.ws!.send(JSON.stringify({
       type: 'join_room',
       room: roomCode,
@@ -530,7 +560,7 @@ export class WebRTCManager {
     }));
 
     // Proactive network test
-    this.testConnectivity();
+    this.runUltimateConnectivityCheck();
   }
 
   private async handleOffer(offer: RTCSessionDescriptionInit) {
@@ -539,7 +569,7 @@ export class WebRTCManager {
     try {
       console.log('[CLIENT] 1. Creating RTCPeerConnection...');
       const pc = new RTCPeerConnection({ 
-        iceServers: this.iceServers,
+        iceServers: this.getIceServers(),
         iceTransportPolicy: 'all',
         iceCandidatePoolSize: 10
       });
@@ -618,13 +648,23 @@ export class WebRTCManager {
         answer: answer
       }));
       console.log('[CLIENT] Handshake sequence (Answer) completed successfully.');
+      
+      // FALLBACK: If DataChannel is already there but missed the open event
+      if (pc.iceConnectionState === 'connected' && pc.signalingState === 'stable') {
+         console.log('[CLIENT] Connection stable. Looking for DataChannel...');
+      }
 
     } catch (error) {
       console.error('[CLIENT CRITICAL ERROR] Failed to process offer/generate answer:', error);
     }
   }
 
-  private async testConnectivity() {
+  public async runUltimateConnectivityCheck() {
+    if (this.customWsUrl) {
+      console.log("[LAN] Skipping connectivity check in tactical local mode.");
+      return;
+    }
+    
     console.log('[NETWORK TEST] Starting ultimate connectivity check...');
     useGameStore.getState().setNetworkStatus('none');
     const gatheredTypes = new Set<string>();
@@ -708,6 +748,13 @@ export class WebRTCManager {
     });
   }
 
+  public broadcastStateToPeer(peerId: string, message: any) {
+    const channel = this.dataChannels.get(peerId);
+    if (channel && channel.readyState === 'open') {
+      channel.send(JSON.stringify({ ...message, senderId: this.localPlayerId }));
+    }
+  }
+
   public sendActionToHost(payload: NetworkPayload) {
     const message = JSON.stringify(payload);
     if (this.isHost) {
@@ -730,6 +777,7 @@ export class WebRTCManager {
 
       if (this.isHost) {
         if (payload.type === "join_lobby") {
+          console.log(`[HOST] Received join_lobby from ${payload.senderId} (${payload.data.name})`);
           const exists = store.players.find(p => p.id === payload.senderId);
           if (!exists) {
             const newPlayer = {
@@ -739,7 +787,12 @@ export class WebRTCManager {
               connected: true
             };
             const updatedPlayers = [...store.players, newPlayer];
+            
+            // Sync local store
             store.setMasterState({ players: updatedPlayers });
+            
+            // RE-BROADCAST: Critical to ensure the joined client (and others) see the new roster
+            console.log(`[HOST] Broadcasting refreshed roster with ${updatedPlayers.length} players`);
             this.broadcastState({ ...store, players: updatedPlayers });
           }
         }

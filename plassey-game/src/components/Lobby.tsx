@@ -94,7 +94,7 @@ export const Lobby: React.FC = () => {
 
               <div className="flex items-center gap-4">
                 <span className={`text-[10px] font-black uppercase tracking-widest text-right transition-colors w-32 ${isHouseRulesEnabled ? 'text-amber-500' : 'text-slate-600'}`}>
-                  House Rules (4P)
+                  House Rules (Allow 4P)
                 </span>
                 <button
                   onClick={handleToggleHouseRules}
@@ -109,8 +109,8 @@ export const Lobby: React.FC = () => {
               onClick={handleStartGame}
               disabled={!canStart}
               className={`px-8 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg ${canStart
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/20'
-                  : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
+                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/20'
+                : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
                 }`}
             >
               {canStart ? 'Commence Battle' : `Need ${minPlayers - players.length} More`}
@@ -130,8 +130,8 @@ export const Lobby: React.FC = () => {
             <div
               key={player.id}
               className={`flex items-center justify-between p-4 rounded-xl border transition-all ${player.id === localPlayerId
-                  ? 'bg-amber-500/5 border-amber-500/30'
-                  : 'bg-slate-800/40 border-slate-700/50 hover:bg-slate-800/60'
+                ? 'bg-amber-500/5 border-amber-500/30'
+                : 'bg-slate-800/40 border-slate-700/50 hover:bg-slate-800/60'
                 }`}
             >
               <div className="flex items-center gap-4">
@@ -179,10 +179,10 @@ export const Lobby: React.FC = () => {
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Network Status</span>
           <div className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${networkStatus === 'turn'
-              ? 'bg-emerald-500/20 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
-              : networkStatus === 'stun'
-                ? 'bg-amber-500/20 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
-                : 'bg-rose-500/20 text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.1)]'
+            ? 'bg-emerald-500/20 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+            : networkStatus === 'stun'
+              ? 'bg-amber-500/20 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
+              : 'bg-rose-500/20 text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.1)]'
             }`}>
             {networkStatus === 'turn' ? 'Open (Relay)' : networkStatus === 'stun' ? 'Limited (STUN)' : 'Restricted'}
           </div>

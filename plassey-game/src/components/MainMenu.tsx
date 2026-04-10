@@ -44,20 +44,33 @@ export const MainMenu: React.FC = () => {
         zc.watch('_plassey._tcp.', 'local.', (result: any) => {
           const action = result.action;
           const service = result.service;
+          
           if (action === 'added' || action === 'resolved') {
-            const ip = service.ipv4Addresses && service.ipv4Addresses[0];
-            // Robust extraction: Try metadata first, then service name fallback (PlasseyHost_ABCD)
+            const ips = service.ipv4Addresses || [];
+            // Extraction: Try metadata roomId, then regex-based fallback from service name
             const metaCode = service.txt && service.txt.roomId;
-            const namePart = (service.name.split('_')[1] || '').split(' ')[0]; // Split by space to handle (2)
-            const code = (metaCode || namePart).toUpperCase();
+            const nameMatch = service.name.match(/PlasseyHost_([A-Z]{4})/i);
+            const namePart = nameMatch ? nameMatch[1] : '';
+            const code = (metaCode || namePart || '').toUpperCase();
 
-            if (ip) {
+            console.log(`[DISCOVERY] ${action.toUpperCase()}: ${service.name} (Code: ${code}) IPs:`, ips);
+
+            if (ips.length > 0) {
               setDiscoveredHosts(prev => {
-                const existing = prev.find(h => h.ip === ip);
-                if (existing && existing.code === code) return prev;
-                // Filter out any existing with same IP to update with new code if needed
-                return [...prev.filter(h => h.ip !== ip), { ip, name: service.name, code }];
+                let updated = [...prev];
+                ips.forEach((ip: string) => {
+                  const existingIndex = updated.findIndex(h => h.ip === ip);
+                  if (existingIndex !== -1) {
+                    updated[existingIndex] = { ip, name: service.name, code };
+                  } else {
+                    updated.push({ ip, name: service.name, code });
+                  }
+                });
+                return updated;
               });
+            } else if (action === 'added') {
+              // Service found but no IP yet - resolution will trigger shortly
+              console.log(`[DISCOVERY] Waiting for resolution of ${service.name}...`);
             }
           } else if (action === 'removed') {
             setDiscoveredHosts(prev => prev.filter(h => h.name !== service.name));
@@ -89,11 +102,12 @@ export const MainMenu: React.FC = () => {
 
     const id = localPlayerId || uuidv4();
     const code = generateRoomCode();
+    let localAddr: string | undefined;
 
     if (isLanMode) {
       try {
         const { LocalServerManager } = await import('../lib/LocalServerManager');
-        const localAddr = await LocalServerManager.startServer(8081, code);
+        localAddr = await LocalServerManager.startServer(8081, code);
         const loopbackAddr = (localAddr === '0.0.0.0' || !localAddr) ? '127.0.0.1' : localAddr;
 
         console.log(`[LAN] Host Server bound to: ${localAddr}. Loopback using: ${loopbackAddr}`);
@@ -113,7 +127,7 @@ export const MainMenu: React.FC = () => {
     setIsHost(true);
 
     // Initialize WebRTC as Host
-    webRTCManager.initializeAsHost(code);
+    webRTCManager.initializeAsHost(code, localAddr);
 
     // Add host to player list
     updatePlayers([{ id, name: playerName, isHost: true, connected: true }]);

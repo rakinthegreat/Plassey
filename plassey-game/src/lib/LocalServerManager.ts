@@ -1,9 +1,9 @@
 export class LocalServerManager {
   private static isRunning = false;
   private static port = 8081;
-  private static clients: Map<string, any> = new Map(); // UUID to connection object
   private static peerToConn: Map<string, string> = new Map(); // PeerID to Connection UUID
   private static hostPeerId: string | null = null;
+  private static pendingJoins: Map<string, string[]> = new Map(); // RoomCode -> Array of Pending SenderIDs
   private static zeroconfServiceName: string | null = null;
 
   public static async startServer(port: number = 8081, roomCode?: string): Promise<string> {
@@ -45,11 +45,9 @@ export class LocalServerManager {
         },
         onOpen: (conn: any) => {
           console.log(`[LOCAL SERVER] Connection opened: ${conn.uuid}`);
-          this.clients.set(conn.uuid, conn);
         },
         onClose: (conn: any, _code: number, _reason: string, _wasClean: boolean) => {
           console.log(`[LOCAL SERVER] Connection closed: ${conn.uuid}`);
-          this.clients.delete(conn.uuid);
           // Cleanup mappings
           for (const [peerId, connId] of this.peerToConn.entries()) {
             if (connId === conn.uuid) {
@@ -87,10 +85,17 @@ export class LocalServerManager {
       window.cordova.plugins.wsserver.stop((addr: string, port: number) => {
         console.log(`[LOCAL SERVER] Stopped on ${addr}:${port}`);
         this.isRunning = false;
-        this.clients.clear();
         this.peerToConn.clear();
         this.hostPeerId = null;
       });
+    }
+  }
+  
+  private static nativeLog(level: 'i'|'d'|'e'|'w', msg: string) {
+    // @ts-ignore
+    if (window.NativeLog && window.NativeLog[level]) {
+        // @ts-ignore
+        window.NativeLog[level]("PLASSEY_TACTICAL", msg);
     }
   }
 
@@ -108,60 +113,74 @@ export class LocalServerManager {
        const rId = room || roomCode;
        const hId = senderId || sender;
        
-       if (this.hostPeerId && this.hostPeerId !== hId) {
-           console.warn(`[LOCAL SERVER] Host collision! Existing: ${this.hostPeerId}, New: ${hId}`);
-           this.sendToConn(conn, { type: 'error', message: 'Room already hosted.' });
-           return;
-       }
-
        this.hostPeerId = hId;
        this.peerToConn.set(hId, conn.uuid);
-       console.log(`[LOCAL SERVER] Host registered room: ${rId} (ID: ${hId}) on connection: ${conn.uuid}`);
+       console.log(`[LOCAL SERVER] %cHost registered%c room: ${rId} (ID: ${hId})`, 'color: #10b981; font-weight: bold', '');
+       this.nativeLog('i', `Host Registered: ${rId} (ID: ${hId})`);
+
+       // FLUSH PENDING JOINS: If clients joined before host was ready, notify host now.
+       const pending = this.pendingJoins.get(rId);
+       if (pending && pending.length > 0) {
+           console.log(`[LOCAL SERVER] Flushing ${pending.length} pending joins for host.`);
+           pending.forEach(senderId => {
+               this.sendToConnId(conn.uuid, { type: 'client_join', sender: senderId });
+           });
+           this.pendingJoins.delete(rId);
+       }
     } else if (type === 'join_room') {
        const actualSender = sender || senderId;
        const actualRoom = room || roomCode;
        this.peerToConn.set(actualSender, conn.uuid);
-       console.log(`[LOCAL SERVER] Client ${actualSender} joining room: ${actualRoom} using connection: ${conn.uuid}`);
+       console.log(`[LOCAL SERVER] %cClient Joining%c: ${actualSender} -> ${actualRoom}`, 'color: #3b82f6; font-weight: bold', '');
+       this.nativeLog('i', `Client Joined: ${actualSender} -> ${actualRoom}`);
        
-       const hostConnUuid = this.hostPeerId ? this.peerToConn.get(this.hostPeerId) : null;
-       if (hostConnUuid) {
-           this.sendToConnId(hostConnUuid, { type: 'client_join', sender: actualSender });
-           console.log(`[LOCAL SERVER] Notified Host (${this.hostPeerId}) of client join.`);
+       if (this.hostPeerId) {
+           const hostConnUuid = this.peerToConn.get(this.hostPeerId);
+           if (hostConnUuid) {
+               this.sendToConnId(hostConnUuid, { type: 'client_join', sender: actualSender });
+               console.log(`[LOCAL SERVER] Notified Host (${this.hostPeerId}) of client join.`);
+           }
        } else {
-           console.warn(`[LOCAL SERVER] Host NOT FOUND for room ${actualRoom}. Handshake will stall.`);
+           console.warn(`[LOCAL SERVER] %cHandshake Stalled%c: Host not yet registered for ${actualRoom}`, 'color: #f43f5e; font-weight: bold', '');
+           this.nativeLog('w', `HANDSHAKE STALLED: Host missing for ${actualRoom}`);
+           
+           // BUFFER JOIN: Save the join request to flush when host arrives
+           const pending = this.pendingJoins.get(actualRoom) || [];
+           if (!pending.includes(actualSender)) {
+               pending.push(actualSender);
+               this.pendingJoins.set(actualRoom, pending);
+           }
        }
     } else if (type === 'offer' || type === 'answer' || type === 'ice_candidate') {
-       // From host to client (isHost here means message is sent by Host, wait, actually we can just rely on IDs)
-       if (this.hostPeerId === (sender || senderId)) {
+       const sId = (sender || senderId);
+       const tId = (target || targetId);
+       console.log(`[LOCAL SERVER] Routing %c${type}%c: ${sId} -> ${tId}`, 'color: #f59e0b', '');
+
+       if (this.hostPeerId === sId) {
            // Routing from Host -> Client
-           const targetIdActual = target || targetId;
-           const targetConnId = this.peerToConn.get(targetIdActual);
+           const targetConnId = this.peerToConn.get(tId);
            if (targetConnId) {
-               console.log(`[LOCAL SERVER] Routing ${type} from Host to Client: ${targetIdActual}`);
                this.sendToConnId(targetConnId, msg);
            } else {
-               console.warn(`[LOCAL SERVER] Failed to route ${type}: Client ${targetIdActual} not found.`);
+               console.warn(`[LOCAL SERVER] Routing Failed: Client ${tId} not found.`);
            }
        } else {
            // Routing from Client -> Host
            const hostConnUuid = this.hostPeerId ? this.peerToConn.get(this.hostPeerId) : null;
            if (hostConnUuid) {
-               console.log(`[LOCAL SERVER] Routing ${type} from Client (${sender || senderId}) to Host`);
                this.sendToConnId(hostConnUuid, msg);
            } else {
-               console.warn(`[LOCAL SERVER] Failed to route ${type}: Host not found.`);
+               console.warn(`[LOCAL SERVER] Routing Failed: Host not found for client ${sId}.`);
            }
        }
     }
   }
 
-  private static sendToConn(conn: any, payload: any) {
-    // @ts-ignore
-    window.cordova.plugins.wsserver.send({ uuid: conn.uuid }, JSON.stringify(payload));
-  }
-  
   private static sendToConnId(uuid: string, payload: any) {
     // @ts-ignore
-    window.cordova.plugins.wsserver.send({ uuid }, JSON.stringify(payload));
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.wsserver) {
+      // @ts-ignore
+      window.cordova.plugins.wsserver.send({ uuid }, JSON.stringify(payload));
+    }
   }
 }

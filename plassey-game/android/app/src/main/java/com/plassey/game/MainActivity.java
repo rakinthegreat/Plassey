@@ -37,6 +37,18 @@ public class MainActivity extends BridgeActivity {
             }, "NativeBoot");
         }
 
+        // NATIVE LOGGING BRIDGE: Allow JS to write directly to Android system logcat
+        this.bridge.getWebView().addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void i(String tag, String msg) { android.util.Log.i(tag, msg); }
+            @android.webkit.JavascriptInterface
+            public void d(String tag, String msg) { android.util.Log.d(tag, msg); }
+            @android.webkit.JavascriptInterface
+            public void e(String tag, String msg) { android.util.Log.e(tag, msg); }
+            @android.webkit.JavascriptInterface
+            public void w(String tag, String msg) { android.util.Log.w(tag, msg); }
+        }, "NativeLog");
+
         // Sequence permissions: Notification first (API 33+), then Battery Optimization for background link stability
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
