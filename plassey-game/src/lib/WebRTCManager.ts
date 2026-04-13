@@ -34,7 +34,33 @@ export class WebRTCManager {
       this.ws.close();
       this.ws = null;
     }
+    
+    // Cleanup local signaling server ONLY if we are the host in LAN mode
+    const store = useGameStore.getState();
+    if ((this.isHost || store.isHost) && (this.customWsUrl || store.isLanMode)) {
+      this.destroySignalingServer();
+    }
+
+    this.isHost = false;
+    this.roomCode = null;
     useGameStore.getState().setNetworkStatus('none');
+  }
+
+  private async destroySignalingServer() {
+    console.log("[LAN] Abandoning Command: Terminating local signaling server...");
+    try {
+      const { LocalServerManager } = await import('./LocalServerManager');
+      
+      // Proactively notify subordinates that the front is dissolving
+      LocalServerManager.broadcastToClients({ type: 'host_leave' });
+      
+      // 200ms Grace Period: Give the OS time to flush the outbound packets
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      await LocalServerManager.stopServer();
+    } catch (e) {
+      console.warn("[LAN] Error during signaling server destruction:", e);
+    }
   }
 
   // Host state

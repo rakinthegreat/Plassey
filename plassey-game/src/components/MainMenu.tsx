@@ -27,11 +27,13 @@ export const MainMenu: React.FC = () => {
 
   React.useEffect(() => {
     // If we're on the Main Menu but have leftover lobby state, clean it.
+    // We only do this ONCE on mount to avoid killing a session we just started.
     if (lobbyId) {
       console.log("[IDENTITY] Deep Scour: Clearing leftover tactical metadata.");
+      webRTCManager.close();
       resetSession();
     }
-  }, [lobbyId, resetSession]);
+  }, []); // Run ONLY on component mount
 
   React.useEffect(() => {
     let zc: any = null;
@@ -114,7 +116,10 @@ export const MainMenu: React.FC = () => {
         webRTCManager.setCustomServerUrl(`ws://${loopbackAddr}:8081`);
         setLanMode(true, loopbackAddr);
       } catch (e: any) {
+        console.error("[LAN] Host initiation failed:", e);
         alert("Failed to start local server. Are you on a native device? Error: " + e.message);
+        setLanMode(false, '');
+        webRTCManager.setCustomServerUrl(null);
         return;
       }
     } else {

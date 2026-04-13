@@ -60,6 +60,7 @@ function App() {
     // we return to the Command Center immediately.
     if (isFreshBoot && status !== 'menu') {
       console.log("[STABILITY] Native Cold Start detected. Resetting tactical state.");
+      webRTCManager.close(); // NEW: Explicitly kill native signaling layer
       resetSession();
       setIsFreshBoot(false); // CRITICAL: Clear flag so user can start a new game
     }

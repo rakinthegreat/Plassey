@@ -1,35 +1,32 @@
 export class LocalServerManager {
-  private static isRunning = false;
   private static port = 8081;
   private static peerToConn: Map<string, string> = new Map(); // PeerID to Connection UUID
   private static hostPeerId: string | null = null;
   private static pendingJoins: Map<string, string[]> = new Map(); // RoomCode -> Array of Pending SenderIDs
   private static zeroconfServiceName: string | null = null;
+  private static isTransitioning = false;
 
   public static async startServer(port: number = 8081, roomCode?: string): Promise<string> {
-    if (this.isRunning) return '0.0.0.0';
-    this.port = port;
+    if (this.isTransitioning) {
+      throw new Error("Strategic deployment already in progress. Please wait.");
+    }
 
-    return new Promise((resolve, reject) => {
+    this.isTransitioning = true;
+    try {
+      this.port = port;
+
+      // Await any existing server to stop first to ensure a clean port transition
+      console.log(`[LOCAL SERVER] Preparing for session ${roomCode}. Ensuring port ${this.port} is clear...`);
+      await this.stopServer();
+
+      return await new Promise<string>((resolve, reject) => {
+        let hasResolved = false;
+
       // @ts-ignore - Cordova plugin injected by Capacitor at runtime
       if (!window.cordova || !window.cordova.plugins || !window.cordova.plugins.wsserver) {
         console.warn("cordova-plugin-websocket-server not found. You might not be on a native device.");
         reject(new Error("Native WebSocket Server plugin not available"));
         return;
-      }
-
-      // Register Zeroconf (mDNS) so clients on LAN can discover the server automatically
-      // @ts-ignore
-      if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf) {
-        // @ts-ignore
-        const zc = window.cordova.plugins.zeroconf;
-        const serviceName = "PlasseyHost_" + (roomCode || Math.random().toString(36).substring(2, 6));
-        zc.register('_plassey._tcp.', 'local.', serviceName, this.port, {
-           'roomId': roomCode || 'HOST'
-        }, () => console.log('[LOCAL SERVER] Zeroconf (mDNS) registered:', serviceName),
-        (err: any) => console.error('[LOCAL SERVER] Zeroconf registration failed:', err));
-        
-        this.zeroconfServiceName = serviceName;
       }
 
       // @ts-ignore
@@ -38,7 +35,10 @@ export class LocalServerManager {
       wsserver.start(this.port, {
         onFailure: (addr: string, port: number, reason: string) => {
           console.error('[LOCAL SERVER] Stopped unexpectedly', addr, port, reason);
-          this.isRunning = false;
+          if (!hasResolved) {
+             hasResolved = true;
+             reject(new Error(reason));
+          }
         },
         onMessage: (conn: any, msg: string) => {
           this.handleMessage(conn, msg);
@@ -58,39 +58,81 @@ export class LocalServerManager {
         }
       }, (addr: string, port: number) => {
         console.log(`[LOCAL SERVER] Listening on ${addr}:${port}`);
-        this.isRunning = true;
+        
+        // Register Zeroconf (mDNS) ONLY AFTER successful bind
+        // @ts-ignore
+        if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf) {
+          // @ts-ignore
+          const zc = window.cordova.plugins.zeroconf;
+          const serviceName = "PlasseyHost_" + (roomCode || Math.random().toString(36).substring(2, 6));
+          zc.register('_plassey._tcp.', 'local.', serviceName, port, {
+             'roomId': roomCode || 'HOST'
+          }, () => console.log('[LOCAL SERVER] Zeroconf (mDNS) registered:', serviceName),
+          (err: any) => console.error('[LOCAL SERVER] Zeroconf registration failed:', err));
+          
+          this.zeroconfServiceName = serviceName;
+        }
+
+        hasResolved = true;
         resolve(addr);
       }, (reason: string) => {
         console.error(`[LOCAL SERVER] Failed to start: ${reason}`);
-        reject(new Error(reason));
+        if (!hasResolved) {
+           hasResolved = true;
+           reject(new Error(reason));
+        }
       });
+    });
+  } finally {
+    this.isTransitioning = false;
+  }
+}
+
+  public static async stopServer(): Promise<void> {
+    // Unregister Zeroconf regardless of isRunning flag to clear MDNS entries
+    // @ts-ignore
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf) {
+      // @ts-ignore
+      const zc = window.cordova.plugins.zeroconf;
+      if (this.zeroconfServiceName) {
+          zc.unregister('_plassey._tcp.', 'local.', this.zeroconfServiceName);
+          console.log('[LOCAL SERVER] Zeroconf unregistered:', this.zeroconfServiceName);
+          this.zeroconfServiceName = null;
+      }
+    }
+
+    return new Promise((resolve) => {
+        // @ts-ignore
+        if (window.cordova && window.cordova.plugins && window.cordova.plugins.wsserver) {
+          // @ts-ignore
+          window.cordova.plugins.wsserver.stop((addr: string, port: number) => {
+            console.log(`[LOCAL SERVER] Native stop success: ${addr}:${port}`);
+            this.peerToConn.clear();
+            this.pendingJoins.clear();
+            this.hostPeerId = null;
+            resolve();
+          }, (err: any) => {
+            console.warn(`[LOCAL SERVER] Native stop failure (likely already stopped):`, err);
+            this.peerToConn.clear();
+            this.pendingJoins.clear();
+            this.hostPeerId = null;
+            resolve();
+          });
+        } else {
+            resolve();
+        }
+    });
+  }
+  
+  public static broadcastToClients(payload: any) {
+    console.log(`[LOCAL SERVER] Broadcasting ${payload.type} to all clients...`);
+    this.peerToConn.forEach((uuid, peerId) => {
+      if (this.hostPeerId && peerId !== this.hostPeerId) {
+        this.sendToConnId(uuid, payload);
+      }
     });
   }
 
-  public static stopServer() {
-    if (!this.isRunning) return;
-    
-    // Unregister Zeroconf
-    // @ts-ignore
-    if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf && this.zeroconfServiceName) {
-      // @ts-ignore
-      window.cordova.plugins.zeroconf.unregister('_plassey._tcp.', 'local.', this.zeroconfServiceName);
-      this.zeroconfServiceName = null;
-      console.log('[LOCAL SERVER] Zeroconf unregistered.');
-    }
-
-    // @ts-ignore
-    if (window.cordova && window.cordova.plugins && window.cordova.plugins.wsserver) {
-      // @ts-ignore
-      window.cordova.plugins.wsserver.stop((addr: string, port: number) => {
-        console.log(`[LOCAL SERVER] Stopped on ${addr}:${port}`);
-        this.isRunning = false;
-        this.peerToConn.clear();
-        this.hostPeerId = null;
-      });
-    }
-  }
-  
   private static nativeLog(level: 'i'|'d'|'e'|'w', msg: string) {
     // @ts-ignore
     if (window.NativeLog && window.NativeLog[level]) {
