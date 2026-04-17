@@ -11,6 +11,7 @@ export class WebRTCManager {
   private roomCode: string | null = null;
   private localPlayerId: string | null = null;
   private customWsUrl: string | null = null;
+  private reconnectionTimers: Map<string, any> = new Map(); // PeerID -> TimerID
 
   public getDataChannel(clientId: string): RTCDataChannel | undefined {
     return this.dataChannels.get(clientId);
@@ -43,6 +44,11 @@ export class WebRTCManager {
 
     this.isHost = false;
     this.roomCode = null;
+    
+    // Clear all pending reconnection timers
+    this.reconnectionTimers.forEach(timer => clearTimeout(timer));
+    this.reconnectionTimers.clear();
+    
     useGameStore.getState().setNetworkStatus('none');
   }
 
@@ -537,9 +543,47 @@ export class WebRTCManager {
 
     channel.onclose = () => {
       console.log(`Data channel closed with ${peerId}`);
+      const store = useGameStore.getState();
+      
       if (this.isHost) {
-        this.dataChannels.delete(peerId);
-        this.peerConnections.delete(peerId);
+        // LAN DISCONNECT RECOVERY
+        if (store.isLanMode) {
+            console.log(`[HOST] %cPeer Disconnected (LAN)%c: ${peerId}. Starting 30s grace period...`, 'color: #f43f5e; font-weight: bold', '');
+            
+            // 1. Mark as disconnected in store
+            const updatedPlayers = store.players.map(p => 
+                p.id === peerId ? { ...p, connected: false } : p
+            );
+            store.setMasterState({ players: updatedPlayers });
+            
+            // 2. Broadcast "Lost Link" state to everyone
+            this.broadcastState({ players: updatedPlayers });
+
+            // 3. Clear any existing timer just in case
+            if (this.reconnectionTimers.has(peerId)) {
+                clearTimeout(this.reconnectionTimers.get(peerId));
+            }
+
+            // 4. Start 30s countdown to purge
+            const timer = setTimeout(() => {
+                console.log(`[HOST] %cGrace Period Expired%c: Purging ${peerId} from session.`, 'color: #f43f5e; font-weight: bold', '');
+                this.reconnectionTimers.delete(peerId);
+                
+                const finalPlayers = useGameStore.getState().players.filter(p => p.id !== peerId);
+                useGameStore.getState().setMasterState({ players: finalPlayers });
+                this.broadcastState({ players: finalPlayers });
+                
+                // Cleanup native resources
+                this.dataChannels.delete(peerId);
+                this.peerConnections.delete(peerId);
+            }, 30000);
+
+            this.reconnectionTimers.set(peerId, timer);
+        } else {
+            // Standard cleanup for cloud mode (immediate removal or leave to signaling)
+            this.dataChannels.delete(peerId);
+            this.peerConnections.delete(peerId);
+        }
       }
     };
   }
@@ -805,7 +849,23 @@ export class WebRTCManager {
         if (payload.type === "join_lobby") {
           console.log(`[HOST] Received join_lobby from ${payload.senderId} (${payload.data.name})`);
           const exists = store.players.find(p => p.id === payload.senderId);
-          if (!exists) {
+          
+          // RECONNECTION LOGIC: If player exists but was "Lost Link", restore them.
+          if (exists) {
+              console.log(`[HOST] %cPlayer Restored%c: ${payload.senderId} re-established link.`, 'color: #10b981; font-weight: bold', '');
+              
+              // Clear purge timer
+              if (this.reconnectionTimers.has(payload.senderId)) {
+                  clearTimeout(this.reconnectionTimers.get(payload.senderId));
+                  this.reconnectionTimers.delete(payload.senderId);
+              }
+
+              const updatedPlayers = store.players.map(p => 
+                  p.id === payload.senderId ? { ...p, connected: true, name: payload.data.name } : p
+              );
+              store.setMasterState({ players: updatedPlayers });
+              this.broadcastState({ players: updatedPlayers });
+          } else {
             const newPlayer = {
               id: payload.senderId,
               name: payload.data.name,
