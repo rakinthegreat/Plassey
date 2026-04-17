@@ -43,7 +43,16 @@ export const MainMenu: React.FC = () => {
         setIsScanning(true);
         // @ts-ignore
         zc = window.cordova.plugins.zeroconf;
-        zc.watch('_plassey._tcp.', 'local.', (result: any) => {
+        
+        // DEEP RESET: Force-reset the native discovery engine to clear stale NsdManager caches.
+        // This resolves the "Added but not Resolved" hang in Android discovery.
+        zc.reInit(() => {
+          console.log("[DISCOVERY] Native engine re-initialized.");
+          // Small grace period for the OS to cycle the multicast listeners
+          setTimeout(() => {
+            zc.unwatch('_plassey._tcp.', 'local.');
+        
+            zc.watch('_plassey._tcp.', 'local.', (result: any) => {
           const action = result.action;
           const service = result.service;
           
@@ -77,7 +86,9 @@ export const MainMenu: React.FC = () => {
           } else if (action === 'removed') {
             setDiscoveredHosts(prev => prev.filter(h => h.name !== service.name));
           }
-        });
+            });
+          }, 150);
+        }, (err: any) => console.error("[DISCOVERY] Native reset failed:", err));
       }
     } else {
       setDiscoveredHosts([]);
@@ -98,6 +109,18 @@ export const MainMenu: React.FC = () => {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
+  };
+
+  const handleToggleLan = () => {
+    const nextMode = !isLanMode;
+    setIsLanMode(nextMode);
+    
+    // PROACTIVE SCOUR: If transitioning to LAN mode, proactively clear any latent native servers.
+    // This gives the OS a head start on releasing the port before the user clicks "Host".
+    if (nextMode) {
+      console.log("[LAN] Toggle Activated: Proactively clearing native signaling layer...");
+      webRTCManager.close();
+    }
   };
   const handleHost = async () => {
     if (!playerName.trim()) return alert('Please enter a name');
@@ -193,7 +216,7 @@ export const MainMenu: React.FC = () => {
           <div className="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
             <span className="text-slate-300 text-sm font-semibold uppercase tracking-wider">Local Hotspot (LAN)</span>
             <button
-              onClick={() => setIsLanMode(!isLanMode)}
+              onClick={handleToggleLan}
               className={`w-12 h-6 rounded-full transition-colors relative ${isLanMode ? 'bg-amber-500' : 'bg-slate-600'}`}
             >
               <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isLanMode ? 'translate-x-7' : 'translate-x-1'}`} />
