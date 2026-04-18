@@ -15,10 +15,13 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
+import com.google.firebase.analytics.FirebaseAnalytics;
 
 public class MainActivity extends BridgeActivity {
     private static final int NOTIFICATION_REQUEST_CODE = 101;
     private static boolean isProcessFresh = true;
+
+    private FirebaseAnalytics mFirebaseAnalytics;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -62,6 +65,8 @@ public class MainActivity extends BridgeActivity {
 
         // Check for updates in background
         Updater.checkForUpdates(this);
+
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
     }
 
     @Override
