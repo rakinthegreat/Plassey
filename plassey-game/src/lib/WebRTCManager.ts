@@ -149,7 +149,15 @@ export class WebRTCManager {
         return;
       }
 
-      const wsUrl = this.customWsUrl || import.meta.env.VITE_WS_URL || 'wss://plassey-server.herokuapp.com'; // Defaulting to cloud if env missing
+      const wsUrl = this.customWsUrl || import.meta.env.VITE_WS_URL || 'wss://plassey-server.herokuapp.com';
+      
+      // STABILITY CHECK: If already connecting/connected to THIS url, don't restart.
+      if (this.ws && this.ws.url === wsUrl && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+        console.log(`[SIGNALING] Already active on ${wsUrl}. Skipping redundant join.`);
+        resolve();
+        return;
+      }
+
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = async () => {
@@ -294,14 +302,16 @@ export class WebRTCManager {
     // This bypasses Android's "Public IP Loopback" block where an app cannot connect to its own external IP.
     if (this.customWsUrl) {
         let listenAddr = addr;
-        if (addr === '::' || addr === '0.0.0.0' || !addr) {
-            console.log(`[LAN] Host Server bound to: ${listenAddr}. Loopback using: 127.0.0.1`);
+        if (!listenAddr || listenAddr === '::' || listenAddr === '0.0.0.0') {
+            // Silently fallback without 'undefined' logs
             listenAddr = '127.0.0.1';
-        } else {
-            console.log(`[LAN] Host Server bound to: ${listenAddr}`);
         }
         
-        this.setCustomServerUrl(`ws://${listenAddr}:8081`);
+        console.log(`[LAN] Commencing host operations (Signaling: ${listenAddr})`);
+        // Use the existing port from customWsUrl instead of hardcoding 8081
+        if (this.customWsUrl.includes('127.0.0.1') || this.customWsUrl.includes('localhost')) {
+            this.setCustomServerUrl(this.customWsUrl.replace('127.0.0.1', listenAddr).replace('localhost', listenAddr));
+        }
     }
     
     // Enforce Local Player ID

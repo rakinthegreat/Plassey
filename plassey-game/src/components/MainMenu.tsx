@@ -9,7 +9,7 @@ export const MainMenu: React.FC = () => {
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [isLanMode, setIsLanMode] = useState(false);
   const [hostIp, setHostIp] = useState('');
-  const [discoveredHosts, setDiscoveredHosts] = useState<{ ip: string, name: string, code: string }[]>([]);
+  const [discoveredHosts, setDiscoveredHosts] = useState<{ ip: string, port: number, name: string, code: string }[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const isNative = !!((window as any).cordova && (window as any).cordova.plugins);
 
@@ -64,24 +64,33 @@ export const MainMenu: React.FC = () => {
             const namePart = nameMatch ? nameMatch[1] : '';
             const code = (metaCode || namePart || '').toUpperCase();
 
-            console.log(`[DISCOVERY] ${action.toUpperCase()}: ${service.name} (Code: ${code}) IPs:`, ips);
+            console.log(`[DISCOVERY] ${action.toUpperCase()}: ${service.name} (Code: ${code}) Port: ${service.port} IPs:`, ips);
 
-            if (ips.length > 0) {
+            // TACTICAL GUARD: If port is 0, the service is 'added' but not yet 'resolved'.
+            // Do not add to list yet to avoid 'Ghost' entries (defaulting to 8081).
+            if (service.port === 0 && action === 'added') {
+              console.log(`[DISCOVERY] Delaying display of ${service.name} until port resolution...`);
+              return;
+            }
+
+            if (ips.length > 0 && service.port > 0) {
               setDiscoveredHosts(prev => {
                 let updated = [...prev];
+                const servicePort = service.port;
                 ips.forEach((ip: string) => {
-                  const existingIndex = updated.findIndex(h => h.ip === ip);
+                  // Key by IP + Port to allow multiple sessions from one host
+                  const existingIndex = updated.findIndex(h => h.ip === ip && h.port === servicePort);
                   if (existingIndex !== -1) {
-                    updated[existingIndex] = { ip, name: service.name, code };
+                    updated[existingIndex] = { ip, port: servicePort, name: service.name, code };
                   } else {
-                    updated.push({ ip, name: service.name, code });
+                    updated.push({ ip, port: servicePort, name: service.name, code });
                   }
                 });
                 return updated;
               });
-            } else if (action === 'added') {
-              // Service found but no IP yet - resolution will trigger shortly
-              console.log(`[DISCOVERY] Waiting for resolution of ${service.name}...`);
+            } else {
+              // Service found but either no IP or port 0 (unresolved)
+              console.log(`[DISCOVERY] Pending resolution for ${service.name} (Port: ${service.port}, IPs: ${ips.length})`);
             }
           } else if (action === 'removed') {
             setDiscoveredHosts(prev => prev.filter(h => h.name !== service.name));
@@ -132,11 +141,13 @@ export const MainMenu: React.FC = () => {
     if (isLanMode) {
       try {
         const { LocalServerManager } = await import('../lib/LocalServerManager');
-        localAddr = await LocalServerManager.startServer(8081, code);
-        const loopbackAddr = (localAddr === '0.0.0.0' || !localAddr) ? '127.0.0.1' : localAddr;
-
-        console.log(`[LAN] Host Server bound to: ${localAddr}. Loopback using: ${loopbackAddr}`);
-        webRTCManager.setCustomServerUrl(`ws://${loopbackAddr}:8081`);
+        const { address: boundAddr, port: boundPort } = await LocalServerManager.startServer(8081, code);
+        localAddr = boundAddr;
+        
+        console.log(`[LAN] Host Success on port ${boundPort}. Local Addr: ${boundAddr}`);
+        
+        const loopbackAddr = '127.0.0.1';
+        webRTCManager.setCustomServerUrl(`ws://${loopbackAddr}:${boundPort}`);
         setLanMode(true, loopbackAddr);
       } catch (e: any) {
         console.error("[LAN] Host initiation failed:", e);
@@ -176,24 +187,61 @@ export const MainMenu: React.FC = () => {
     if (isLanMode && !finalIp) return alert('Please enter the Host IP for LAN mode');
 
     if (isLanMode) {
-      webRTCManager.setCustomServerUrl(`ws://${finalIp}:8081`);
-      setLanMode(true, finalIp);
+      // PROBING LOGIC
+      const startJoin = async () => {
+        let targetIp = finalIp;
+        let targetPort = "8081";
+
+        // If the user provided ip:port, parse it
+        if (finalIp.includes(':')) {
+            const parts = finalIp.split(':');
+            targetIp = parts[0];
+            targetPort = parts[1];
+        } else {
+            // Check if we have this IP in discovered hosts to get its port
+            const discovered = discoveredHosts.find(h => h.ip === finalIp);
+            if (discovered) {
+                targetPort = String(discovered.port);
+            } else {
+                // BRUTE FORCE SCAN FALLBACK (User typed manual IP without port)
+                console.log(`[JOIN] No port specified for ${finalIp}. Commencing tactical port probe (8081-8089)...`);
+                for (let p = 8081; p <= 8089; p++) {
+                    const success = await new Promise((resolve) => {
+                        const testWs = new WebSocket(`ws://${finalIp}:${p}`);
+                        const timer = setTimeout(() => { testWs.close(); resolve(false); }, 400); // 400ms per port
+                        testWs.onopen = () => { clearTimeout(timer); testWs.close(); resolve(true); };
+                        testWs.onerror = () => { clearTimeout(timer); resolve(false); };
+                    });
+                    if (success) {
+                        console.log(`[JOIN] Tactical link discovered on port ${p}!`);
+                        targetPort = String(p);
+                        break;
+                    }
+                }
+            }
+        }
+
+        webRTCManager.setCustomServerUrl(`ws://${targetIp}:${targetPort}`);
+        setLanMode(true, targetIp);
+        
+        setIsHost(false);
+        const id = localPlayerId || uuidv4();
+
+        setLocalPlayerId(id);
+        setLobbyId(finalCode);
+        setStorePlayerName(finalName);
+
+        // Initialize WebRTC as Client
+        webRTCManager.initializeAsClient(finalCode, finalName);
+        setStatus('lobby');
+      };
+
+      startJoin();
+      return; // Async flow started
     } else {
       webRTCManager.setCustomServerUrl(null);
       setLanMode(false, '');
     }
-
-    setIsHost(false);
-    const id = localPlayerId || uuidv4();
-
-    setLocalPlayerId(id);
-    setLobbyId(finalCode);
-    setStorePlayerName(finalName);
-
-    // Initialize WebRTC as Client
-    webRTCManager.initializeAsClient(finalCode, finalName);
-
-    setStatus('lobby');
   };
 
   return (
@@ -239,7 +287,7 @@ export const MainMenu: React.FC = () => {
                   <button
                     key={host.ip}
                     onClick={() => {
-                      setHostIp(host.ip);
+                      setHostIp(host.port === 8081 ? host.ip : `${host.ip}:${host.port}`);
                       if (host.code) setRoomCodeInput(host.code.toUpperCase());
                     }}
                     className={`w-full text-left bg-slate-900 border ${hostIp === host.ip ? 'border-amber-500 bg-amber-900/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-slate-600 hover:border-slate-500'} rounded-lg py-3 px-4 text-white text-sm focus:outline-none transition-all flex flex-col group relative overflow-hidden`}

@@ -6,87 +6,109 @@ export class LocalServerManager {
   private static zeroconfServiceName: string | null = null;
   private static isTransitioning = false;
 
-  public static async startServer(port: number = 8081, roomCode?: string): Promise<string> {
+  public static async startServer(initialPort: number = 8081, roomCode?: string): Promise<{ address: string, port: number }> {
     if (this.isTransitioning) {
       throw new Error("Strategic deployment already in progress. Please wait.");
     }
 
     this.isTransitioning = true;
     try {
-      this.port = port;
-
-      // Await any existing server to stop first to ensure a clean port transition
-      console.log(`[LOCAL SERVER] Preparing for session ${roomCode}. Ensuring port ${this.port} is clear...`);
-      await this.stopServer();
-
-      return await new Promise<string>((resolve, reject) => {
-        let hasResolved = false;
-
-      // @ts-ignore - Cordova plugin injected by Capacitor at runtime
-      if (!window.cordova || !window.cordova.plugins || !window.cordova.plugins.wsserver) {
-        console.warn("cordova-plugin-websocket-server not found. You might not be on a native device.");
-        reject(new Error("Native WebSocket Server plugin not available"));
-        return;
-      }
-
-      // @ts-ignore
-      const wsserver = window.cordova.plugins.wsserver;
-
-      wsserver.start(this.port, {
-        onFailure: (addr: string, port: number, reason: string) => {
-          console.error('[LOCAL SERVER] Stopped unexpectedly', addr, port, reason);
-          if (!hasResolved) {
-             hasResolved = true;
-             reject(new Error(reason));
-          }
-        },
-        onMessage: (conn: any, msg: string) => {
-          this.handleMessage(conn, msg);
-        },
-        onOpen: (conn: any) => {
-          console.log(`[LOCAL SERVER] Connection opened: ${conn.uuid}`);
-        },
-        onClose: (conn: any, _code: number, _reason: string, _wasClean: boolean) => {
-          console.log(`[LOCAL SERVER] Connection closed: ${conn.uuid}`);
-          // Cleanup mappings
-          for (const [peerId, connId] of this.peerToConn.entries()) {
-            if (connId === conn.uuid) {
-              this.peerToConn.delete(peerId);
-              console.log(`[LOCAL SERVER] Removed dead peer mapping: ${peerId}`);
-            }
-          }
-        }
-      }, (addr: string, port: number) => {
-        console.log(`[LOCAL SERVER] Listening on ${addr}:${port}`);
-        
-        // Register Zeroconf (mDNS) ONLY AFTER successful bind
-        // @ts-ignore
-        if (window.cordova && window.cordova.plugins && window.cordova.plugins.zeroconf) {
-          // @ts-ignore
-          const zc = window.cordova.plugins.zeroconf;
-          const serviceName = "PlasseyHost_" + (roomCode || Math.random().toString(36).substring(2, 6));
-          zc.register('_plassey._tcp.', 'local.', serviceName, port, {
-             'roomId': roomCode || 'HOST'
-          }, () => console.log('[LOCAL SERVER] Zeroconf (mDNS) registered:', serviceName),
-          (err: any) => console.error('[LOCAL SERVER] Zeroconf registration failed:', err));
+      // Loop through ports starting from initialPort up to initialPort + 8
+      for (let attemptPort = initialPort; attemptPort <= initialPort + 8; attemptPort++) {
+        try {
+          this.port = attemptPort;
+          console.log(`[LOCAL SERVER] Attempting to bind to tactical port ${this.port}...`);
           
-          this.zeroconfServiceName = serviceName;
-        }
+          await this.stopServer(); // Clean up any zombie state before new bind
+          
+          // TACTICAL DELAY: Give the OS 250ms to release the previous socket/MDNS
+          if (attemptPort > initialPort) {
+            console.log(`[LOCAL SERVER] Settling network (250ms)...`);
+            await new Promise(r => setTimeout(r, 250));
+          }
 
-        hasResolved = true;
-        resolve(addr);
-      }, (reason: string) => {
-        console.error(`[LOCAL SERVER] Failed to start: ${reason}`);
-        if (!hasResolved) {
-           hasResolved = true;
-           reject(new Error(reason));
+          const bindResult = await new Promise<{ address: string, port: number }>((resolve, reject) => {
+            let hasResolved = false;
+
+            // @ts-ignore
+            if (!window.cordova || !window.cordova.plugins || !window.cordova.plugins.wsserver) {
+              reject(new Error("Native WebSocket Server plugin not available"));
+              return;
+            }
+
+            // @ts-ignore
+            const wsserver = window.cordova.plugins.wsserver;
+
+            wsserver.start(this.port, {
+              onFailure: (addr: string, port: number, reason: string) => {
+                console.error('[LOCAL SERVER] Stopped unexpectedly', addr, port, reason);
+                if (!hasResolved) {
+                  hasResolved = true;
+                  reject(new Error(reason));
+                }
+              },
+              onMessage: (conn: any, msg: string) => {
+                this.handleMessage(conn, msg);
+              },
+              onOpen: (conn: any) => {
+                console.log(`[LOCAL SERVER] Connection opened: ${conn.uuid}`);
+              },
+              onClose: (conn: any, _code: number, _reason: string, _wasClean: boolean) => {
+                console.log(`[LOCAL SERVER] Connection closed: ${conn.uuid}`);
+                for (const [peerId, connId] of this.peerToConn.entries()) {
+                  if (connId === conn.uuid) {
+                    this.peerToConn.delete(peerId);
+                    console.log(`[LOCAL SERVER] Removed dead peer mapping: ${peerId}`);
+                  }
+                }
+              }
+            }, (addr: string, port: number) => {
+              console.log(`[LOCAL SERVER] Listening on ${addr}:${port}`);
+              
+              if ((window as any).cordova && (window as any).cordova.plugins && (window as any).cordova.plugins.zeroconf) {
+                // @ts-ignore
+                const zc = (window as any).cordova.plugins.zeroconf;
+                const serviceName = "PlasseyHost_" + (roomCode || Math.random().toString(36).substring(2, 6));
+                
+                // PROACTIVE RESET: Ensure the native mDNS engine is re-initialized for this specific port
+                zc.reInit(() => {
+                  zc.register('_plassey._tcp.', 'local.', serviceName, port, {
+                    'roomId': roomCode || 'HOST'
+                  }, () => console.log('[LOCAL SERVER] Zeroconf (mDNS) registered:', serviceName, 'on port:', port),
+                  (err: any) => console.error('[LOCAL SERVER] Zeroconf registration failed:', err));
+                  
+                  this.zeroconfServiceName = serviceName;
+                }, (err: any) => console.error('[LOCAL SERVER] Zeroconf engine reset failed:', err));
+              }
+
+              hasResolved = true;
+              resolve({ address: addr, port });
+            }, (reason: string) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                reject(new Error(reason));
+              }
+            });
+          });
+
+          return bindResult; // Success!
+
+        } catch (error: any) {
+          const reason = error?.message || String(error);
+          const isBindError = reason.includes("Address already in use") || reason.includes("EADDRINUSE") || reason.includes("8081");
+          
+          if (isBindError && attemptPort < initialPort + 8) {
+            console.warn(`[LOCAL SERVER] Tactical Port ${attemptPort} occupied (${reason}). Retrying on ${attemptPort + 1}...`);
+            continue;
+          }
+          throw error;
         }
-      });
-    });
-  } finally {
-    this.isTransitioning = false;
+      }
+      throw new Error("All tactical ports (8081-8089) are currently occupied.");
+    } finally {
+      this.isTransitioning = false;
+    }
   }
-}
 
   public static async stopServer(): Promise<void> {
     // Unregister Zeroconf regardless of isRunning flag to clear MDNS entries
