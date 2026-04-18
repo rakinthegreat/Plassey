@@ -9,6 +9,7 @@ import { AudioToggle } from './components/AudioToggle';
 import { HotseatSetup } from './components/HotseatSetup';
 import { HotseatReveal } from './components/HotseatReveal';
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { Analytics } from "@vercel/analytics/react";
 
 function App() {
   const [showRules, setShowRules] = useState(false);
@@ -79,7 +80,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0f18] text-slate-200 font-sans selection:bg-amber-500/30 selection:text-amber-200">
-      {!isNative && <SpeedInsights />}
+      {!isNative && (
+        <>
+          <SpeedInsights />
+          <Analytics />
+        </>
+      )}
       <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 flex flex-col items-center justify-center min-h-screen">
 
         {/* Header Section (Visible on Menu) */}
