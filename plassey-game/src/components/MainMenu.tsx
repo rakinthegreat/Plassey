@@ -186,6 +186,19 @@ export const MainMenu: React.FC = () => {
     }
     if (isLanMode && !finalIp) return alert('Please enter the Host IP for LAN mode');
 
+    const proceedWithJoin = () => {
+      setIsHost(false);
+      const id = localPlayerId || uuidv4();
+
+      setLocalPlayerId(id);
+      setLobbyId(finalCode);
+      setStorePlayerName(finalName);
+
+      // Initialize WebRTC as Client
+      webRTCManager.initializeAsClient(finalCode, finalName);
+      setStatus('lobby');
+    };
+
     if (isLanMode) {
       // PROBING LOGIC
       const startJoin = async () => {
@@ -223,24 +236,14 @@ export const MainMenu: React.FC = () => {
 
         webRTCManager.setCustomServerUrl(`ws://${targetIp}:${targetPort}`);
         setLanMode(true, targetIp);
-        
-        setIsHost(false);
-        const id = localPlayerId || uuidv4();
-
-        setLocalPlayerId(id);
-        setLobbyId(finalCode);
-        setStorePlayerName(finalName);
-
-        // Initialize WebRTC as Client
-        webRTCManager.initializeAsClient(finalCode, finalName);
-        setStatus('lobby');
+        proceedWithJoin();
       };
 
       startJoin();
-      return; // Async flow started
     } else {
       webRTCManager.setCustomServerUrl(null);
       setLanMode(false, '');
+      proceedWithJoin();
     }
   };
 
@@ -290,7 +293,7 @@ export const MainMenu: React.FC = () => {
                       setHostIp(host.port === 8081 ? host.ip : `${host.ip}:${host.port}`);
                       if (host.code) setRoomCodeInput(host.code.toUpperCase());
                     }}
-                    className={`w-full text-left bg-slate-900 border ${hostIp === host.ip ? 'border-amber-500 bg-amber-900/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-slate-600 hover:border-slate-500'} rounded-lg py-3 px-4 text-white text-sm focus:outline-none transition-all flex flex-col group relative overflow-hidden`}
+                    className={`w-full text-left bg-slate-900 border ${(hostIp === host.ip || hostIp === `${host.ip}:${host.port}`) ? 'border-amber-500 bg-amber-900/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-slate-600 hover:border-slate-500'} rounded-lg py-3 px-4 text-white text-sm focus:outline-none transition-all flex flex-col group relative overflow-hidden`}
                   >
                     <div className="flex items-center justify-between w-full">
                       <div className="flex flex-col">
@@ -309,7 +312,7 @@ export const MainMenu: React.FC = () => {
                       </div>
                     </div>
 
-                    {hostIp === host.ip && (
+                    {(hostIp === host.ip || hostIp === `${host.ip}:${host.port}`) && (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
