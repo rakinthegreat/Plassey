@@ -2,6 +2,7 @@ import React from 'react';
 import { useGameStore } from '../store/gameStore';
 import { webRTCManager } from '../lib/WebRTCManager';
 import { GameEngine } from '../lib/GameEngine';
+import { logGameEvent } from '../lib/analytics';
 
 export const Lobby: React.FC = () => {
   const { lobbyId, players, localPlayerId, setMasterState, networkStatus } = useGameStore();
@@ -56,6 +57,13 @@ export const Lobby: React.FC = () => {
       isAdvancedMode,
       ...initialState
     } as any);
+
+    logGameEvent('game_started', {
+      player_count: players.length,
+      is_advanced: isAdvancedMode,
+      house_rules: isHouseRulesEnabled,
+      lobby_id: lobbyId
+    });
   };
 
   return (

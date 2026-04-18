@@ -1,3 +1,5 @@
+import { logGameEvent } from './analytics';
+
 export class LocalServerManager {
   private static port = 8081;
   private static peerToConn: Map<string, string> = new Map(); // PeerID to Connection UUID
@@ -99,6 +101,7 @@ export class LocalServerManager {
           
           if (isBindError && attemptPort < initialPort + 8) {
             console.warn(`[LOCAL SERVER] Tactical Port ${attemptPort} occupied (${reason}). Retrying on ${attemptPort + 1}...`);
+            logGameEvent('host_port_occupied', { port: attemptPort, reason });
             continue;
           }
           throw error;

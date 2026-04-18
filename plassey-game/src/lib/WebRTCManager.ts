@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { NetworkPayload } from "../types/game";
 import { useGameStore } from "../store/gameStore";
 import { GameEngine } from "./GameEngine";
+import { logGameEvent } from './analytics';
 
 // Remove static ICE_SERVERS handled via dynamic injection
 
@@ -162,6 +163,7 @@ export class WebRTCManager {
 
       this.ws.onopen = async () => {
         console.log('Connected to signaling server');
+        logGameEvent('signaling_connected', { url: wsUrl });
         // Pre-fetch TURN credentials in background - DO NOT AWAIT on LAN
         this.fetchTurnCredentials();
         
@@ -174,6 +176,7 @@ export class WebRTCManager {
 
       this.ws.onerror = (err) => {
         console.error('Signaling server error:', err);
+        logGameEvent('signaling_error', { url: wsUrl, error: String(err) });
         reject(err);
       };
 
@@ -241,6 +244,7 @@ export class WebRTCManager {
 
     if (msg.type === 'promote_to_host') {
       console.log(`[PROMOTION] Battlefield Command restored for ${msg.roomCode}`);
+      logGameEvent('promotion_to_host', { room: msg.roomCode });
       this.isHost = true;
       useGameStore.getState().setIsHost(true);
       return;
@@ -503,6 +507,7 @@ export class WebRTCManager {
   private setupDataChannel(channel: RTCDataChannel, peerId: string) {
     const onOpenHandler = () => {
       console.log(`Data channel opened with ${peerId}`);
+      logGameEvent('peer_connection_opened', { is_host: this.isHost });
       if (this.isHost) {
         this.dataChannels.set(peerId, channel);
         
@@ -553,12 +558,14 @@ export class WebRTCManager {
 
     channel.onclose = () => {
       console.log(`Data channel closed with ${peerId}`);
+      logGameEvent('peer_connection_closed', { is_host: this.isHost });
       const store = useGameStore.getState();
       
       if (this.isHost) {
         // LAN DISCONNECT RECOVERY
         if (store.isLanMode) {
             console.log(`[HOST] %cPeer Disconnected (LAN)%c: ${peerId}. Starting 30s grace period...`, 'color: #f43f5e; font-weight: bold', '');
+            logGameEvent('peer_lost_link_grace_period_start', { peer: peerId });
             
             // 1. Mark as disconnected in store
             const updatedPlayers = store.players.map(p => 
@@ -577,6 +584,7 @@ export class WebRTCManager {
             // 4. Start 30s countdown to purge
             const timer = setTimeout(() => {
                 console.log(`[HOST] %cGrace Period Expired%c: Purging ${peerId} from session.`, 'color: #f43f5e; font-weight: bold', '');
+                logGameEvent('peer_purged_after_timeout', { peer: peerId });
                 this.reconnectionTimers.delete(peerId);
                 
                 const finalPlayers = useGameStore.getState().players.filter(p => p.id !== peerId);

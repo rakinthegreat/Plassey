@@ -1,3 +1,10 @@
 log.txt
 log_notworking.txt
 plassey-game/android/app/google-services.json
+.env
+.env.local
+.env.*.local
+dist
+dist-ssr
+*.local
+node_modules

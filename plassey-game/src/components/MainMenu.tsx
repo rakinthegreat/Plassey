@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { webRTCManager } from '../lib/WebRTCManager';
 import { v4 as uuidv4 } from 'uuid';
+import { logGameEvent, identifyCommander } from '../lib/analytics';
 import { DownloadAppButton } from './DownloadAppButton';
 
 export const MainMenu: React.FC = () => {
@@ -129,6 +130,9 @@ export const MainMenu: React.FC = () => {
     if (nextMode) {
       console.log("[LAN] Toggle Activated: Proactively clearing native signaling layer...");
       webRTCManager.close();
+      logGameEvent('lan_feature_activated');
+    } else {
+      logGameEvent('cloud_feature_activated');
     }
   };
   const handleHost = async () => {
@@ -137,12 +141,14 @@ export const MainMenu: React.FC = () => {
     const id = localPlayerId || uuidv4();
     const code = generateRoomCode();
     let localAddr: string | undefined;
+    let actualPort: number | string = 'cloud';
 
     if (isLanMode) {
       try {
         const { LocalServerManager } = await import('../lib/LocalServerManager');
         const { address: boundAddr, port: boundPort } = await LocalServerManager.startServer(8081, code);
         localAddr = boundAddr;
+        actualPort = boundPort;
         
         console.log(`[LAN] Host Success on port ${boundPort}. Local Addr: ${boundAddr}`);
         
@@ -164,6 +170,13 @@ export const MainMenu: React.FC = () => {
     setLobbyId(code);
     setStorePlayerName(playerName);
     setIsHost(true);
+
+    identifyCommander(id);
+    logGameEvent('host_game', {
+      is_lan: isLanMode,
+      is_native: !!(window as any).cordova,
+      port: actualPort
+    });
 
     // Initialize WebRTC as Host
     webRTCManager.initializeAsHost(code, localAddr);
@@ -193,6 +206,12 @@ export const MainMenu: React.FC = () => {
       setLocalPlayerId(id);
       setLobbyId(finalCode);
       setStorePlayerName(finalName);
+
+      identifyCommander(id);
+      logGameEvent('join_game', {
+        is_lan: isLanMode,
+        is_native: !!(window as any).cordova
+      });
 
       // Initialize WebRTC as Client
       webRTCManager.initializeAsClient(finalCode, finalName);
